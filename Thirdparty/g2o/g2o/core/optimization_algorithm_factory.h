@@ -36,7 +36,7 @@
 #include <typeinfo>
 
 // define to get some verbose output
-//#define G2O_DEBUG_OPTIMIZATION_ALGORITHM_FACTORY
+// #define G2O_DEBUG_OPTIMIZATION_ALGORITHM_FACTORY
 
 namespace g2o {
 

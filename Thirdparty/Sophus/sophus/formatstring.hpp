@@ -15,9 +15,9 @@ template <class T>
 class IsStreamable {
  private:
   template <class TT>
-  static auto test(int)
-      -> decltype(std::declval<std::stringstream&>() << std::declval<TT>(),
-                  std::true_type());
+  static auto test(int) -> decltype(std::declval<std::stringstream&>()
+                                        << std::declval<TT>(),
+                                    std::true_type());
 
   template <class>
   static auto test(...) -> std::false_type;

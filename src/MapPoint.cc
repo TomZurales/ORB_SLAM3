@@ -108,11 +108,9 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
 
   Eigen::Vector3f PC = mWorldPos - Ow;
   const float dist = PC.norm();
-  const int level = (pFrame->Nleft == -1)
-                        ? pFrame->mvKeysUn[idxF].octave
-                        : (idxF < pFrame->Nleft)
-                              ? pFrame->mvKeys[idxF].octave
-                              : pFrame->mvKeysRight[idxF].octave;
+  const int level = (pFrame->Nleft == -1)    ? pFrame->mvKeysUn[idxF].octave
+                    : (idxF < pFrame->Nleft) ? pFrame->mvKeys[idxF].octave
+                                             : pFrame->mvKeysRight[idxF].octave;
   const float levelScaleFactor = pFrame->mvScaleFactors[level];
   const int nLevels = pFrame->mnScaleLevels;
 

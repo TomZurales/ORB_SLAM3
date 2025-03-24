@@ -542,7 +542,7 @@ template <typename Traits> bool BlockSolver<Traits>::buildSystem() {
   // clear b vector
 #ifdef G2O_OPENMP
 #pragma omp parallel for default(                                              \
-    shared) if (_optimizer->indexMapping().size() > 1000)
+        shared) if (_optimizer->indexMapping().size() > 1000)
 #endif
   for (int i = 0; i < static_cast<int>(_optimizer->indexMapping().size());
        ++i) {
@@ -567,7 +567,7 @@ template <typename Traits> bool BlockSolver<Traits>::buildSystem() {
   // thread
   JacobianWorkspace jacobianWorkspace = _optimizer->jacobianWorkspace();
 #pragma omp parallel for default(shared) firstprivate(                         \
-    jacobianWorkspace) if (_optimizer->activeEdges().size() > 100)
+        jacobianWorkspace) if (_optimizer->activeEdges().size() > 100)
 #endif
   for (int k = 0; k < static_cast<int>(_optimizer->activeEdges().size()); ++k) {
     OptimizableGraph::Edge *e = _optimizer->activeEdges()[k];
@@ -594,7 +594,7 @@ template <typename Traits> bool BlockSolver<Traits>::buildSystem() {
   // flush the current system in a sparse block matrix
 #ifdef G2O_OPENMP
 #pragma omp parallel for default(                                              \
-    shared) if (_optimizer->indexMapping().size() > 1000)
+        shared) if (_optimizer->indexMapping().size() > 1000)
 #endif
   for (int i = 0; i < static_cast<int>(_optimizer->indexMapping().size());
        ++i) {

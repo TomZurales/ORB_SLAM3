@@ -308,11 +308,6 @@ public:
 
   int mnDataset;
 
-#ifdef REGISTER_TIMES
-  double mTimeORB_Ext;
-  double mTimeStereoMatch;
-#endif
-
 private:
   // Undistort keypoints given OpenCV distortion parameters.
   // Only for the RGB-D case. Stereo must be already rectified!

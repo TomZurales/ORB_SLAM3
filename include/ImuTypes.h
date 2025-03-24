@@ -65,13 +65,13 @@ class Bias {
   friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive &ar, const unsigned int version) {
-    ar &bax;
-    ar &bay;
-    ar &baz;
+    ar & bax;
+    ar & bay;
+    ar & baz;
 
-    ar &bwx;
-    ar &bwy;
-    ar &bwz;
+    ar & bwx;
+    ar & bwy;
+    ar & bwz;
   }
 
 public:
@@ -103,7 +103,7 @@ class Calib {
     ar &boost::serialization::make_array(CovWalk.diagonal().data(),
                                          CovWalk.diagonal().size());
 
-    ar &mbIsSet;
+    ar & mbIsSet;
   }
 
 public:
@@ -147,14 +147,14 @@ class Preintegrated {
   friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive &ar, const unsigned int version) {
-    ar &dT;
+    ar & dT;
     ar &boost::serialization::make_array(C.data(), C.size());
     ar &boost::serialization::make_array(Info.data(), Info.size());
     ar &boost::serialization::make_array(Nga.diagonal().data(),
                                          Nga.diagonal().size());
     ar &boost::serialization::make_array(NgaWalk.diagonal().data(),
                                          NgaWalk.diagonal().size());
-    ar &b;
+    ar & b;
     ar &boost::serialization::make_array(dR.data(), dR.size());
     ar &boost::serialization::make_array(dV.data(), dV.size());
     ar &boost::serialization::make_array(dP.data(), dP.size());
@@ -166,9 +166,9 @@ class Preintegrated {
     ar &boost::serialization::make_array(avgA.data(), avgA.size());
     ar &boost::serialization::make_array(avgW.data(), avgW.size());
 
-    ar &bu;
+    ar & bu;
     ar &boost::serialization::make_array(db.data(), db.size());
-    ar &mvMeasurements;
+    ar & mvMeasurements;
   }
 
 public:
@@ -236,7 +236,7 @@ private:
     void serialize(Archive &ar, const unsigned int version) {
       ar &boost::serialization::make_array(a.data(), a.size());
       ar &boost::serialization::make_array(w.data(), w.size());
-      ar &t;
+      ar & t;
     }
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW

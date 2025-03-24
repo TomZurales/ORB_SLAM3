@@ -49,8 +49,7 @@ public:
  * @param NORM type of norm to use when MUSTNORMALIZE
  */
 #define __SCORING_CLASS(NAME, MUSTNORMALIZE, NORM)                             \
-  NAME:                                                                        \
-public                                                                         \
+  NAME : public                                                                \
   GeneralScoring {                                                             \
   public:                                                                      \
     /**                                                                        \

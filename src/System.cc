@@ -188,7 +188,7 @@ System::System(const string &strVocFile, const string &strSettingsFile,
 
   // Initialize the Tracking thread
   //(it will live in the main thread of execution, the one that called this
-  //constructor)
+  // constructor)
   cout << "Seq. Name: " << strSequence << endl;
   mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
                            mpAtlas, mpKeyFrameDatabase, strSettingsFile,
@@ -540,10 +540,6 @@ void System::Shutdown() {
 
   /*if(mpViewer)
       pangolin::BindToContext("ORB-SLAM2: Map Viewer");*/
-
-#ifdef REGISTER_TIMES
-  mpTracker->PrintTimeStats();
-#endif
 }
 
 bool System::isShutDown() {
@@ -1393,20 +1389,6 @@ void System::ChangeDataset() {
 }
 
 float System::GetImageScale() { return mpTracker->GetImageScale(); }
-
-#ifdef REGISTER_TIMES
-void System::InsertRectTime(double &time) {
-  mpTracker->vdRectStereo_ms.push_back(time);
-}
-
-void System::InsertResizeTime(double &time) {
-  mpTracker->vdResizeImage_ms.push_back(time);
-}
-
-void System::InsertTrackTime(double &time) {
-  mpTracker->vdTrackTotal_ms.push_back(time);
-}
-#endif
 
 void System::SaveAtlas(int type) {
   if (!mStrSaveAtlasToFile.empty()) {

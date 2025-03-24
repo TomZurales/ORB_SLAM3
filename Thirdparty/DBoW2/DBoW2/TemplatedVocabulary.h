@@ -1040,7 +1040,7 @@ void TemplatedVocabulary<TDescriptor, F>::transform(
         v.addIfNotExist(id, w);
 
     } // if add_features
-  }   // if m_weighting == ...
+  } // if m_weighting == ...
 
   if (must)
     v.normalize(norm);
@@ -1222,7 +1222,7 @@ void TemplatedVocabulary<TDescriptor, F>::getWordsFromNode(
           parents.push_back(*cit);
 
       } // for each child
-    }   // while !parents.empty
+    } // while !parents.empty
   }
 }
 
@@ -1334,8 +1334,8 @@ void TemplatedVocabulary<TDescriptor, F>::saveToTextFile(
     const std::string &filename) const {
   fstream f;
   f.open(filename.c_str(), ios_base::out);
-  f << m_k << " " << m_L << " "
-    << " " << m_scoring << " " << m_weighting << endl;
+  f << m_k << " " << m_L << " " << " " << m_scoring << " " << m_weighting
+    << endl;
 
   for (size_t i = 1; i < m_nodes.size(); i++) {
     const Node &node = m_nodes[i];
@@ -1416,8 +1416,7 @@ void TemplatedVocabulary<TDescriptor, F>::save(cv::FileStorage &f,
   f << "weightingType" << m_weighting;
 
   // tree
-  f << "nodes"
-    << "[";
+  f << "nodes" << "[";
   vector<NodeId> parents, children;
   vector<NodeId>::const_iterator pit;
 
@@ -1451,8 +1450,7 @@ void TemplatedVocabulary<TDescriptor, F>::save(cv::FileStorage &f,
   f << "]"; // nodes
 
   // words
-  f << "words"
-    << "[";
+  f << "words" << "[";
 
   typename vector<Node *>::const_iterator wit;
   for (wit = m_words.begin(); wit != m_words.end(); wit++) {
