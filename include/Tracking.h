@@ -179,6 +179,8 @@ public:
   double t0;    // time-stamp of first read frame
   double t0vis; // time-stamp of first inserted keyframe
   double t0IMU; // time-stamp of IMU initialization
+
+  // If true, initialization can take place even with low acceleration
   bool mFastInit = false;
 
   vector<MapPoint *> GetLocalMapMPS();

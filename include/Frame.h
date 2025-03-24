@@ -229,7 +229,7 @@ public:
   float mThDepth;
 
   // Number of KeyPoints.
-  int N;
+  int numKeyPoints;
 
   // Vector of keypoints (original for visualization) and undistorted (actually
   // used by the system). In the stereo case, mvKeysUn is redundant as images
@@ -332,7 +332,7 @@ public:
   GeometricCamera *mpCamera, *mpCamera2;
 
   // Number of KeyPoints extracted in the left and right images
-  int Nleft, Nright;
+  int numKeyPointsLeft, numKeyPointsRight;
   // Number of Non Lapping Keypoints
   int monoLeft, monoRight;
 
@@ -369,8 +369,8 @@ public:
 
   void PrintPointDistribution() {
     int left = 0, right = 0;
-    int Nlim = (Nleft != -1) ? Nleft : N;
-    for (int i = 0; i < N; i++) {
+    int Nlim = (numKeyPointsLeft != -1) ? numKeyPointsLeft : numKeyPoints;
+    for (int i = 0; i < numKeyPoints; i++) {
       if (mvpMapPoints[i] && !mvbOutlier[i]) {
         if (i < Nlim)
           left++;

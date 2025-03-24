@@ -811,7 +811,7 @@ int Optimizer::PoseOptimization(Frame *pFrame) {
   optimizer.addVertex(vSE3);
 
   // Set MapPoint vertices
-  const int N = pFrame->N;
+  const int N = pFrame->numKeyPoints;
 
   vector<ORB_SLAM3::EdgeSE3ProjectXYZOnlyPose *> vpEdgesMono;
   vector<ORB_SLAM3::EdgeSE3ProjectXYZOnlyPoseToBody *> vpEdgesMono_FHR;
@@ -909,7 +909,7 @@ int Optimizer::PoseOptimization(Frame *pFrame) {
 
           cv::KeyPoint kpUn;
 
-          if (i < pFrame->Nleft) { // Left camera observation
+          if (i < pFrame->numKeyPointsLeft) { // Left camera observation
             kpUn = pFrame->mvKeys[i];
 
             pFrame->mvbOutlier[i] = false;
@@ -938,7 +938,7 @@ int Optimizer::PoseOptimization(Frame *pFrame) {
             vpEdgesMono.push_back(e);
             vnIndexEdgeMono.push_back(i);
           } else {
-            kpUn = pFrame->mvKeysRight[i - pFrame->Nleft];
+            kpUn = pFrame->mvKeysRight[i - pFrame->numKeyPointsLeft];
 
             Eigen::Matrix<double, 2, 1> obs;
             obs << kpUn.pt.x, kpUn.pt.y;
@@ -4521,8 +4521,8 @@ int Optimizer::PoseInertialOptimizationLastKeyFrame(Frame *pFrame,
   optimizer.addVertex(VA);
 
   // Set MapPoint vertices
-  const int N = pFrame->N;
-  const int Nleft = pFrame->Nleft;
+  const int N = pFrame->numKeyPoints;
+  const int Nleft = pFrame->numKeyPointsLeft;
   const bool bRight = (Nleft != -1);
 
   vector<EdgeMonoOnlyPose *> vpEdgesMono;
@@ -4890,8 +4890,8 @@ int Optimizer::PoseInertialOptimizationLastFrame(Frame *pFrame, bool bRecInit) {
   optimizer.addVertex(VA);
 
   // Set MapPoint vertices
-  const int N = pFrame->N;
-  const int Nleft = pFrame->Nleft;
+  const int N = pFrame->numKeyPoints;
+  const int Nleft = pFrame->numKeyPointsLeft;
   const bool bRight = (Nleft != -1);
 
   vector<EdgeMonoOnlyPose *> vpEdgesMono;

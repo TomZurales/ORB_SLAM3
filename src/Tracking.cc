@@ -1499,7 +1499,7 @@ void Tracking::Track() {
             mCurrentFrame.mvbOutlier = vbOutMM;
 
             if (mbVO) {
-              for (int i = 0; i < mCurrentFrame.N; i++) {
+              for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
                 if (mCurrentFrame.mvpMapPoints[i] &&
                     !mCurrentFrame.mvbOutlier[i]) {
                   mCurrentFrame.mvpMapPoints[i]->IncreaseFound();
@@ -1608,7 +1608,7 @@ void Tracking::Track() {
         mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.GetPose());
 
       // Clean VO matches
-      for (int i = 0; i < mCurrentFrame.N; i++) {
+      for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
         MapPoint *pMP = mCurrentFrame.mvpMapPoints[i];
         if (pMP)
           if (pMP->Observations() < 1) {
@@ -1641,7 +1641,7 @@ void Tracking::Track() {
       // finally decide if they are outliers or not. We don't want next frame to
       // estimate its position with those points so we discard them in the
       // frame. Only has effect if lastframe is tracked
-      for (int i = 0; i < mCurrentFrame.N; i++) {
+      for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
         if (mCurrentFrame.mvpMapPoints[i] && mCurrentFrame.mvbOutlier[i])
           mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
       }
@@ -1705,7 +1705,7 @@ void Tracking::Track() {
 }
 
 void Tracking::StereoInitialization() {
-  if (mCurrentFrame.N > 500) {
+  if (mCurrentFrame.numKeyPoints > 500) {
     if (mSensor == System::IMU_STEREO || mSensor == System::IMU_RGBD) {
       if (!mCurrentFrame.mpImuPreintegrated || !mLastFrame.mpImuPreintegrated) {
         cout << "not IMU meas" << endl;
@@ -1746,7 +1746,7 @@ void Tracking::StereoInitialization() {
 
     // Create MapPoints and asscoiate to KeyFrame
     if (!mpCamera2) {
-      for (int i = 0; i < mCurrentFrame.N; i++) {
+      for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
         float z = mCurrentFrame.mvDepth[i];
         if (z > 0) {
           Eigen::Vector3f x3D;
@@ -1763,7 +1763,7 @@ void Tracking::StereoInitialization() {
         }
       }
     } else {
-      for (int i = 0; i < mCurrentFrame.Nleft; i++) {
+      for (int i = 0; i < mCurrentFrame.numKeyPointsLeft; i++) {
         int rightIndex = mCurrentFrame.mvLeftToRightMatch[i];
         if (rightIndex != -1) {
           Eigen::Vector3f x3D = mCurrentFrame.mvStereo3Dpoints[i];
@@ -1772,17 +1772,17 @@ void Tracking::StereoInitialization() {
               new MapPoint(x3D, pKFini, mpAtlas->GetCurrentMap());
 
           pNewMP->AddObservation(pKFini, i);
-          pNewMP->AddObservation(pKFini, rightIndex + mCurrentFrame.Nleft);
+          pNewMP->AddObservation(pKFini, rightIndex + mCurrentFrame.numKeyPointsLeft);
 
           pKFini->AddMapPoint(pNewMP, i);
-          pKFini->AddMapPoint(pNewMP, rightIndex + mCurrentFrame.Nleft);
+          pKFini->AddMapPoint(pNewMP, rightIndex + mCurrentFrame.numKeyPointsLeft);
 
           pNewMP->ComputeDistinctiveDescriptors();
           pNewMP->UpdateNormalAndDepth();
           mpAtlas->AddMapPoint(pNewMP);
 
           mCurrentFrame.mvpMapPoints[i] = pNewMP;
-          mCurrentFrame.mvpMapPoints[rightIndex + mCurrentFrame.Nleft] = pNewMP;
+          mCurrentFrame.mvpMapPoints[rightIndex + mCurrentFrame.numKeyPointsLeft] = pNewMP;
         }
       }
     }
@@ -2065,7 +2065,7 @@ void Tracking::CreateMapInAtlas() {
 }
 
 void Tracking::CheckReplacedInLastFrame() {
-  for (int i = 0; i < mLastFrame.N; i++) {
+  for (int i = 0; i < mLastFrame.numKeyPoints; i++) {
     MapPoint *pMP = mLastFrame.mvpMapPoints[i];
 
     if (pMP) {
@@ -2105,7 +2105,7 @@ bool Tracking::TrackReferenceKeyFrame() {
 
   // Discard outliers
   int nmatchesMap = 0;
-  for (int i = 0; i < mCurrentFrame.N; i++) {
+  for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
     // if(i >= mCurrentFrame.Nleft) break;
     if (mCurrentFrame.mvpMapPoints[i]) {
       if (mCurrentFrame.mvbOutlier[i]) {
@@ -2113,7 +2113,7 @@ bool Tracking::TrackReferenceKeyFrame() {
 
         mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
         mCurrentFrame.mvbOutlier[i] = false;
-        if (i < mCurrentFrame.Nleft) {
+        if (i < mCurrentFrame.numKeyPointsLeft) {
           pMP->mbTrackInView = false;
         } else {
           pMP->mbTrackInViewR = false;
@@ -2146,7 +2146,7 @@ void Tracking::UpdateLastFrame() {
   // Create "visual odometry" MapPoints
   // We sort points according to their measured depth by the stereo/RGB-D sensor
   vector<pair<float, int>> vDepthIdx;
-  const int Nfeat = mLastFrame.Nleft == -1 ? mLastFrame.N : mLastFrame.Nleft;
+  const int Nfeat = mLastFrame.numKeyPointsLeft == -1 ? mLastFrame.numKeyPoints : mLastFrame.numKeyPointsLeft;
   vDepthIdx.reserve(Nfeat);
   for (int i = 0; i < Nfeat; i++) {
     float z = mLastFrame.mvDepth[i];
@@ -2178,7 +2178,7 @@ void Tracking::UpdateLastFrame() {
     if (bCreateNew) {
       Eigen::Vector3f x3D;
 
-      if (mLastFrame.Nleft == -1) {
+      if (mLastFrame.numKeyPointsLeft == -1) {
         mLastFrame.UnprojectStereo(i, x3D);
       } else {
         x3D = mLastFrame.UnprojectStereoFishEye(i);
@@ -2258,14 +2258,14 @@ bool Tracking::TrackWithMotionModel() {
 
   // Discard outliers
   int nmatchesMap = 0;
-  for (int i = 0; i < mCurrentFrame.N; i++) {
+  for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
     if (mCurrentFrame.mvpMapPoints[i]) {
       if (mCurrentFrame.mvbOutlier[i]) {
         MapPoint *pMP = mCurrentFrame.mvpMapPoints[i];
 
         mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
         mCurrentFrame.mvbOutlier[i] = false;
-        if (i < mCurrentFrame.Nleft) {
+        if (i < mCurrentFrame.numKeyPointsLeft) {
           pMP->mbTrackInView = false;
         } else {
           pMP->mbTrackInViewR = false;
@@ -2301,7 +2301,7 @@ bool Tracking::TrackLocalMap() {
 
   // TOO check outliers before PO
   int aux1 = 0, aux2 = 0;
-  for (int i = 0; i < mCurrentFrame.N; i++)
+  for (int i = 0; i < mCurrentFrame.numKeyPoints; i++)
     if (mCurrentFrame.mvpMapPoints[i]) {
       aux1++;
       if (mCurrentFrame.mvbOutlier[i])
@@ -2333,7 +2333,7 @@ bool Tracking::TrackLocalMap() {
   }
 
   aux1 = 0, aux2 = 0;
-  for (int i = 0; i < mCurrentFrame.N; i++)
+  for (int i = 0; i < mCurrentFrame.numKeyPoints; i++)
     if (mCurrentFrame.mvpMapPoints[i]) {
       aux1++;
       if (mCurrentFrame.mvbOutlier[i])
@@ -2343,7 +2343,7 @@ bool Tracking::TrackLocalMap() {
   mnMatchesInliers = 0;
 
   // Update MapPoints Statistics
-  for (int i = 0; i < mCurrentFrame.N; i++) {
+  for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
     if (mCurrentFrame.mvpMapPoints[i]) {
       if (!mCurrentFrame.mvbOutlier[i]) {
         mCurrentFrame.mvpMapPoints[i]->IncreaseFound();
@@ -2436,7 +2436,7 @@ bool Tracking::NeedNewKeyFrame() {
   int nTrackedClose = 0;
 
   if (mSensor != System::MONOCULAR && mSensor != System::IMU_MONOCULAR) {
-    int N = (mCurrentFrame.Nleft == -1) ? mCurrentFrame.N : mCurrentFrame.Nleft;
+    int N = (mCurrentFrame.numKeyPointsLeft == -1) ? mCurrentFrame.numKeyPoints : mCurrentFrame.numKeyPointsLeft;
     for (int i = 0; i < N; i++) {
       if (mCurrentFrame.mvDepth[i] > 0 && mCurrentFrame.mvDepth[i] < mThDepth) {
         if (mCurrentFrame.mvpMapPoints[i] && !mCurrentFrame.mvbOutlier[i])
@@ -2590,8 +2590,8 @@ void Tracking::CreateNewKeyFrame() {
       maxPoint = 100;
 
     vector<pair<float, int>> vDepthIdx;
-    int N = (mCurrentFrame.Nleft != -1) ? mCurrentFrame.Nleft : mCurrentFrame.N;
-    vDepthIdx.reserve(mCurrentFrame.N);
+    int N = (mCurrentFrame.numKeyPointsLeft != -1) ? mCurrentFrame.numKeyPointsLeft : mCurrentFrame.numKeyPoints;
+    vDepthIdx.reserve(mCurrentFrame.numKeyPoints);
     for (int i = 0; i < N; i++) {
       float z = mCurrentFrame.mvDepth[i];
       if (z > 0) {
@@ -2619,7 +2619,7 @@ void Tracking::CreateNewKeyFrame() {
         if (bCreateNew) {
           Eigen::Vector3f x3D;
 
-          if (mCurrentFrame.Nleft == -1) {
+          if (mCurrentFrame.numKeyPointsLeft == -1) {
             mCurrentFrame.UnprojectStereo(i, x3D);
           } else {
             x3D = mCurrentFrame.UnprojectStereoFishEye(i);
@@ -2630,14 +2630,14 @@ void Tracking::CreateNewKeyFrame() {
 
           // Check if it is a stereo observation in order to not
           // duplicate mappoints
-          if (mCurrentFrame.Nleft != -1 &&
+          if (mCurrentFrame.numKeyPointsLeft != -1 &&
               mCurrentFrame.mvLeftToRightMatch[i] >= 0) {
-            mCurrentFrame.mvpMapPoints[mCurrentFrame.Nleft +
+            mCurrentFrame.mvpMapPoints[mCurrentFrame.numKeyPointsLeft +
                                        mCurrentFrame.mvLeftToRightMatch[i]] =
                 pNewMP;
             pNewMP->AddObservation(
-                pKF, mCurrentFrame.Nleft + mCurrentFrame.mvLeftToRightMatch[i]);
-            pKF->AddMapPoint(pNewMP, mCurrentFrame.Nleft +
+                pKF, mCurrentFrame.numKeyPointsLeft + mCurrentFrame.mvLeftToRightMatch[i]);
+            pKF->AddMapPoint(pNewMP, mCurrentFrame.numKeyPointsLeft +
                                          mCurrentFrame.mvLeftToRightMatch[i]);
           }
 
@@ -2784,7 +2784,7 @@ void Tracking::UpdateLocalKeyFrames() {
   map<KeyFrame *, int> keyframeCounter;
   if (!mpAtlas->isImuInitialized() ||
       (mCurrentFrame.mnId < mnLastRelocFrameId + 2)) {
-    for (int i = 0; i < mCurrentFrame.N; i++) {
+    for (int i = 0; i < mCurrentFrame.numKeyPoints; i++) {
       MapPoint *pMP = mCurrentFrame.mvpMapPoints[i];
       if (pMP) {
         if (!pMP->isBad()) {
@@ -2801,7 +2801,7 @@ void Tracking::UpdateLocalKeyFrames() {
       }
     }
   } else {
-    for (int i = 0; i < mLastFrame.N; i++) {
+    for (int i = 0; i < mLastFrame.numKeyPoints; i++) {
       // Using lastframe since current frame has not matches yet
       if (mLastFrame.mvpMapPoints[i]) {
         MapPoint *pMP = mLastFrame.mvpMapPoints[i];
@@ -3026,7 +3026,7 @@ bool Tracking::Relocalization() {
         if (nGood < 10)
           continue;
 
-        for (int io = 0; io < mCurrentFrame.N; io++)
+        for (int io = 0; io < mCurrentFrame.numKeyPoints; io++)
           if (mCurrentFrame.mvbOutlier[io])
             mCurrentFrame.mvpMapPoints[io] = static_cast<MapPoint *>(NULL);
 
@@ -3044,7 +3044,7 @@ bool Tracking::Relocalization() {
             // many points
             if (nGood > 30 && nGood < 50) {
               sFound.clear();
-              for (int ip = 0; ip < mCurrentFrame.N; ip++)
+              for (int ip = 0; ip < mCurrentFrame.numKeyPoints; ip++)
                 if (mCurrentFrame.mvpMapPoints[ip])
                   sFound.insert(mCurrentFrame.mvpMapPoints[ip]);
               nadditional = matcher2.SearchByProjection(
@@ -3054,7 +3054,7 @@ bool Tracking::Relocalization() {
               if (nGood + nadditional >= 50) {
                 nGood = Optimizer::PoseOptimization(&mCurrentFrame);
 
-                for (int io = 0; io < mCurrentFrame.N; io++)
+                for (int io = 0; io < mCurrentFrame.numKeyPoints; io++)
                   if (mCurrentFrame.mvbOutlier[io])
                     mCurrentFrame.mvpMapPoints[io] = NULL;
               }

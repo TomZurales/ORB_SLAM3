@@ -92,7 +92,7 @@ int ORBmatcher::SearchByProjection(Frame &F,
             if (F.mvpMapPoints[idx]->Observations() > 0)
               continue;
 
-          if (F.Nleft == -1 && F.mvuRight[idx] > 0) {
+          if (F.numKeyPointsLeft == -1 && F.mvuRight[idx] > 0) {
             const float er = fabs(pMP->mTrackProjXR - F.mvuRight[idx]);
             if (er > r * F.mvScaleFactors[nPredictedLevel])
               continue;
@@ -106,15 +106,15 @@ int ORBmatcher::SearchByProjection(Frame &F,
             bestDist2 = bestDist;
             bestDist = dist;
             bestLevel2 = bestLevel;
-            bestLevel = (F.Nleft == -1)   ? F.mvKeysUn[idx].octave
-                        : (idx < F.Nleft) ? F.mvKeys[idx].octave
-                                          : F.mvKeysRight[idx - F.Nleft].octave;
+            bestLevel = (F.numKeyPointsLeft == -1)   ? F.mvKeysUn[idx].octave
+                        : (idx < F.numKeyPointsLeft) ? F.mvKeys[idx].octave
+                                          : F.mvKeysRight[idx - F.numKeyPointsLeft].octave;
             bestIdx = idx;
           } else if (dist < bestDist2) {
-            bestLevel2 = (F.Nleft == -1) ? F.mvKeysUn[idx].octave
-                         : (idx < F.Nleft)
+            bestLevel2 = (F.numKeyPointsLeft == -1) ? F.mvKeysUn[idx].octave
+                         : (idx < F.numKeyPointsLeft)
                              ? F.mvKeys[idx].octave
-                             : F.mvKeysRight[idx - F.Nleft].octave;
+                             : F.mvKeysRight[idx - F.numKeyPointsLeft].octave;
             bestDist2 = dist;
           }
         }
@@ -128,10 +128,10 @@ int ORBmatcher::SearchByProjection(Frame &F,
           if (bestLevel != bestLevel2 || bestDist <= mfNNratio * bestDist2) {
             F.mvpMapPoints[bestIdx] = pMP;
 
-            if (F.Nleft != -1 && F.mvLeftToRightMatch[bestIdx] !=
+            if (F.numKeyPointsLeft != -1 && F.mvLeftToRightMatch[bestIdx] !=
                                      -1) { // Also match with the stereo
                                            // observation at right camera
-              F.mvpMapPoints[F.mvLeftToRightMatch[bestIdx] + F.Nleft] = pMP;
+              F.mvpMapPoints[F.mvLeftToRightMatch[bestIdx] + F.numKeyPointsLeft] = pMP;
               nmatches++;
               right++;
             }
@@ -143,7 +143,7 @@ int ORBmatcher::SearchByProjection(Frame &F,
       }
     }
 
-    if (F.Nleft != -1 && pMP->mbTrackInViewR) {
+    if (F.numKeyPointsLeft != -1 && pMP->mbTrackInViewR) {
       const int &nPredictedLevel = pMP->mnTrackScaleLevelR;
       if (nPredictedLevel != -1) {
         float r = RadiusByViewingCos(pMP->mTrackViewCosR);
@@ -170,11 +170,11 @@ int ORBmatcher::SearchByProjection(Frame &F,
              vit != vend; vit++) {
           const size_t idx = *vit;
 
-          if (F.mvpMapPoints[idx + F.Nleft])
-            if (F.mvpMapPoints[idx + F.Nleft]->Observations() > 0)
+          if (F.mvpMapPoints[idx + F.numKeyPointsLeft])
+            if (F.mvpMapPoints[idx + F.numKeyPointsLeft]->Observations() > 0)
               continue;
 
-          const cv::Mat &d = F.mDescriptors.row(idx + F.Nleft);
+          const cv::Mat &d = F.mDescriptors.row(idx + F.numKeyPointsLeft);
 
           const int dist = DescriptorDistance(MPdescriptor, d);
 
@@ -196,7 +196,7 @@ int ORBmatcher::SearchByProjection(Frame &F,
           if (bestLevel == bestLevel2 && bestDist > mfNNratio * bestDist2)
             continue;
 
-          if (F.Nleft != -1 && F.mvRightToLeftMatch[bestIdx] !=
+          if (F.numKeyPointsLeft != -1 && F.mvRightToLeftMatch[bestIdx] !=
                                    -1) { // Also match with the stereo
                                          // observation at right camera
             F.mvpMapPoints[F.mvRightToLeftMatch[bestIdx]] = pMP;
@@ -204,7 +204,7 @@ int ORBmatcher::SearchByProjection(Frame &F,
             left++;
           }
 
-          F.mvpMapPoints[bestIdx + F.Nleft] = pMP;
+          F.mvpMapPoints[bestIdx + F.numKeyPointsLeft] = pMP;
           nmatches++;
           right++;
         }
@@ -225,7 +225,7 @@ int ORBmatcher::SearchByBoW(KeyFrame *pKF, Frame &F,
                             vector<MapPoint *> &vpMapPointMatches) {
   const vector<MapPoint *> vpMapPointsKF = pKF->GetMapPointMatches();
 
-  vpMapPointMatches = vector<MapPoint *>(F.N, static_cast<MapPoint *>(NULL));
+  vpMapPointMatches = vector<MapPoint *>(F.numKeyPoints, static_cast<MapPoint *>(NULL));
 
   const DBoW2::FeatureVector &vFeatVecKF = pKF->mFeatVec;
 
@@ -270,7 +270,7 @@ int ORBmatcher::SearchByBoW(KeyFrame *pKF, Frame &F,
         int bestDist2R = 256;
 
         for (size_t iF = 0; iF < vIndicesF.size(); iF++) {
-          if (F.Nleft == -1) {
+          if (F.numKeyPointsLeft == -1) {
             const unsigned int realIdxF = vIndicesF[iF];
 
             if (vpMapPointMatches[realIdxF])
@@ -297,19 +297,19 @@ int ORBmatcher::SearchByBoW(KeyFrame *pKF, Frame &F,
 
             const int dist = DescriptorDistance(dKF, dF);
 
-            if (realIdxF < F.Nleft && dist < bestDist1) {
+            if (realIdxF < F.numKeyPointsLeft && dist < bestDist1) {
               bestDist2 = bestDist1;
               bestDist1 = dist;
               bestIdxF = realIdxF;
-            } else if (realIdxF < F.Nleft && dist < bestDist2) {
+            } else if (realIdxF < F.numKeyPointsLeft && dist < bestDist2) {
               bestDist2 = dist;
             }
 
-            if (realIdxF >= F.Nleft && dist < bestDist1R) {
+            if (realIdxF >= F.numKeyPointsLeft && dist < bestDist1R) {
               bestDist2R = bestDist1R;
               bestDist1R = dist;
               bestIdxFR = realIdxF;
-            } else if (realIdxF >= F.Nleft && dist < bestDist2R) {
+            } else if (realIdxF >= F.numKeyPointsLeft && dist < bestDist2R) {
               bestDist2R = dist;
             }
           }
@@ -328,8 +328,8 @@ int ORBmatcher::SearchByBoW(KeyFrame *pKF, Frame &F,
 
             if (mbCheckOrientation) {
               cv::KeyPoint &Fkp =
-                  (!pKF->mpCamera2 || F.Nleft == -1) ? F.mvKeys[bestIdxF]
-                  : (bestIdxF >= F.Nleft) ? F.mvKeysRight[bestIdxF - F.Nleft]
+                  (!pKF->mpCamera2 || F.numKeyPointsLeft == -1) ? F.mvKeys[bestIdxF]
+                  : (bestIdxF >= F.numKeyPointsLeft) ? F.mvKeysRight[bestIdxF - F.numKeyPointsLeft]
                                           : F.mvKeys[bestIdxF];
 
               float rot = kp.angle - Fkp.angle;
@@ -358,8 +358,8 @@ int ORBmatcher::SearchByBoW(KeyFrame *pKF, Frame &F,
 
               if (mbCheckOrientation) {
                 cv::KeyPoint &Fkp = (!F.mpCamera2) ? F.mvKeys[bestIdxFR]
-                                    : (bestIdxFR >= F.Nleft)
-                                        ? F.mvKeysRight[bestIdxFR - F.Nleft]
+                                    : (bestIdxFR >= F.numKeyPointsLeft)
+                                        ? F.mvKeysRight[bestIdxFR - F.numKeyPointsLeft]
                                         : F.mvKeys[bestIdxFR];
 
                 float rot = kp.angle - Fkp.angle;
@@ -1609,7 +1609,7 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
   const bool bForward = tlc(2) > CurrentFrame.mb && !bMono;
   const bool bBackward = -tlc(2) > CurrentFrame.mb && !bMono;
 
-  for (int i = 0; i < LastFrame.N; i++) {
+  for (int i = 0; i < LastFrame.numKeyPoints; i++) {
     MapPoint *pMP = LastFrame.mvpMapPoints[i];
     if (pMP) {
       if (!LastFrame.mvbOutlier[i]) {
@@ -1632,9 +1632,9 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
           continue;
 
         int nLastOctave =
-            (LastFrame.Nleft == -1 || i < LastFrame.Nleft)
+            (LastFrame.numKeyPointsLeft == -1 || i < LastFrame.numKeyPointsLeft)
                 ? LastFrame.mvKeys[i].octave
-                : LastFrame.mvKeysRight[i - LastFrame.Nleft].octave;
+                : LastFrame.mvKeysRight[i - LastFrame.numKeyPointsLeft].octave;
 
         // Search in a window. Size depends on scale
         float radius = th * CurrentFrame.mvScaleFactors[nLastOctave];
@@ -1668,7 +1668,7 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
             if (CurrentFrame.mvpMapPoints[i2]->Observations() > 0)
               continue;
 
-          if (CurrentFrame.Nleft == -1 && CurrentFrame.mvuRight[i2] > 0) {
+          if (CurrentFrame.numKeyPointsLeft == -1 && CurrentFrame.mvuRight[i2] > 0) {
             const float ur = uv(0) - CurrentFrame.mbf * invzc;
             const float er = fabs(ur - CurrentFrame.mvuRight[i2]);
             if (er > radius)
@@ -1691,16 +1691,16 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
 
           if (mbCheckOrientation) {
             cv::KeyPoint kpLF =
-                (LastFrame.Nleft == -1) ? LastFrame.mvKeysUn[i]
-                : (i < LastFrame.Nleft)
+                (LastFrame.numKeyPointsLeft == -1) ? LastFrame.mvKeysUn[i]
+                : (i < LastFrame.numKeyPointsLeft)
                     ? LastFrame.mvKeys[i]
-                    : LastFrame.mvKeysRight[i - LastFrame.Nleft];
+                    : LastFrame.mvKeysRight[i - LastFrame.numKeyPointsLeft];
 
             cv::KeyPoint kpCF =
-                (CurrentFrame.Nleft == -1) ? CurrentFrame.mvKeysUn[bestIdx2]
-                : (bestIdx2 < CurrentFrame.Nleft)
+                (CurrentFrame.numKeyPointsLeft == -1) ? CurrentFrame.mvKeysUn[bestIdx2]
+                : (bestIdx2 < CurrentFrame.numKeyPointsLeft)
                     ? CurrentFrame.mvKeys[bestIdx2]
-                    : CurrentFrame.mvKeysRight[bestIdx2 - CurrentFrame.Nleft];
+                    : CurrentFrame.mvKeysRight[bestIdx2 - CurrentFrame.numKeyPointsLeft];
             float rot = kpLF.angle - kpCF.angle;
             if (rot < 0.0)
               rot += 360.0f;
@@ -1711,14 +1711,14 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
             rotHist[bin].push_back(bestIdx2);
           }
         }
-        if (CurrentFrame.Nleft != -1) {
+        if (CurrentFrame.numKeyPointsLeft != -1) {
           Eigen::Vector3f x3Dr = CurrentFrame.GetRelativePoseTrl() * x3Dc;
           Eigen::Vector2f uv = CurrentFrame.mpCamera->project(x3Dr);
 
           int nLastOctave =
-              (LastFrame.Nleft == -1 || i < LastFrame.Nleft)
+              (LastFrame.numKeyPointsLeft == -1 || i < LastFrame.numKeyPointsLeft)
                   ? LastFrame.mvKeys[i].octave
-                  : LastFrame.mvKeysRight[i - LastFrame.Nleft].octave;
+                  : LastFrame.mvKeysRight[i - LastFrame.numKeyPointsLeft].octave;
 
           // Search in a window. Size depends on scale
           float radius = th * CurrentFrame.mvScaleFactors[nLastOctave];
@@ -1744,13 +1744,13 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
                                               vend = vIndices2.end();
                vit != vend; vit++) {
             const size_t i2 = *vit;
-            if (CurrentFrame.mvpMapPoints[i2 + CurrentFrame.Nleft])
-              if (CurrentFrame.mvpMapPoints[i2 + CurrentFrame.Nleft]
+            if (CurrentFrame.mvpMapPoints[i2 + CurrentFrame.numKeyPointsLeft])
+              if (CurrentFrame.mvpMapPoints[i2 + CurrentFrame.numKeyPointsLeft]
                       ->Observations() > 0)
                 continue;
 
             const cv::Mat &d =
-                CurrentFrame.mDescriptors.row(i2 + CurrentFrame.Nleft);
+                CurrentFrame.mDescriptors.row(i2 + CurrentFrame.numKeyPointsLeft);
 
             const int dist = DescriptorDistance(dMP, d);
 
@@ -1761,14 +1761,14 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
           }
 
           if (bestDist <= TH_HIGH) {
-            CurrentFrame.mvpMapPoints[bestIdx2 + CurrentFrame.Nleft] = pMP;
+            CurrentFrame.mvpMapPoints[bestIdx2 + CurrentFrame.numKeyPointsLeft] = pMP;
             nmatches++;
             if (mbCheckOrientation) {
               cv::KeyPoint kpLF =
-                  (LastFrame.Nleft == -1) ? LastFrame.mvKeysUn[i]
-                  : (i < LastFrame.Nleft)
+                  (LastFrame.numKeyPointsLeft == -1) ? LastFrame.mvKeysUn[i]
+                  : (i < LastFrame.numKeyPointsLeft)
                       ? LastFrame.mvKeys[i]
-                      : LastFrame.mvKeysRight[i - LastFrame.Nleft];
+                      : LastFrame.mvKeysRight[i - LastFrame.numKeyPointsLeft];
 
               cv::KeyPoint kpCF = CurrentFrame.mvKeysRight[bestIdx2];
 
@@ -1779,7 +1779,7 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame,
               if (bin == HISTO_LENGTH)
                 bin = 0;
               assert(bin >= 0 && bin < HISTO_LENGTH);
-              rotHist[bin].push_back(bestIdx2 + CurrentFrame.Nleft);
+              rotHist[bin].push_back(bestIdx2 + CurrentFrame.numKeyPointsLeft);
             }
           }
         }
