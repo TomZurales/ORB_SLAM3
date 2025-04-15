@@ -33,6 +33,8 @@
 #include "Optimizer.h"
 #include <System.h>
 
+// #define TCZ_THESIS
+
 using namespace std;
 
 void LoadImages(const string &strPathLeft, const string &strPathRight,
@@ -42,8 +44,10 @@ void LoadImages(const string &strPathLeft, const string &strPathRight,
 void LoadIMU(const string &strImuPath, vector<double> &vTimeStamps,
              vector<cv::Point3f> &vAcc, vector<cv::Point3f> &vGyro);
 
-int main(int argc, char **argv) {
-  if (argc < 5) {
+int main(int argc, char **argv)
+{
+  if (argc < 5)
+  {
     cerr << endl
          << "Usage: ./stereo_inertial_euroc path_to_vocabulary "
             "path_to_settings path_to_sequence_folder_1 path_to_times_file_1 "
@@ -57,7 +61,8 @@ int main(int argc, char **argv) {
   cout << "num_seq = " << num_seq << endl;
   bool bFileName = (((argc - 3) % 2) == 1);
   string file_name;
-  if (bFileName) {
+  if (bFileName)
+  {
     file_name = string(argv[argc - 1]);
     cout << "file name: " << file_name << endl;
   }
@@ -83,7 +88,8 @@ int main(int argc, char **argv) {
   nImu.resize(num_seq);
 
   int tot_images = 0;
-  for (seq = 0; seq < num_seq; seq++) {
+  for (seq = 0; seq < num_seq; seq++)
+  {
     cout << "Loading images for sequence " << seq << "...";
 
     string pathSeq(argv[(2 * seq) + 3]);
@@ -105,7 +111,8 @@ int main(int argc, char **argv) {
     tot_images += nImages[seq];
     nImu[seq] = vTimestampsImu[seq].size();
 
-    if ((nImages[seq] <= 0) || (nImu[seq] <= 0)) {
+    if ((nImages[seq] <= 0) || (nImu[seq] <= 0))
+    {
       cerr << "ERROR: Failed to load images or IMU for sequence" << seq << endl;
       return 1;
     }
@@ -119,7 +126,8 @@ int main(int argc, char **argv) {
 
   // Read rectification parameters
   cv::FileStorage fsSettings(argv[2], cv::FileStorage::READ);
-  if (!fsSettings.isOpened()) {
+  if (!fsSettings.isOpened())
+  {
     cerr << "ERROR: Wrong path to settings" << endl;
     return -1;
   }
@@ -128,7 +136,8 @@ int main(int argc, char **argv) {
   vector<float> vTimesTrack;
   vTimesTrack.resize(tot_images);
 
-  cout << endl << "-------" << endl;
+  cout << endl
+       << "-------" << endl;
   cout.precision(17);
 
   // Create SLAM system. It initializes all system threads and gets ready to
@@ -136,7 +145,8 @@ int main(int argc, char **argv) {
   ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::IMU_STEREO, true);
 
   cv::Mat imLeft, imRight;
-  for (seq = 0; seq < num_seq; seq++) {
+  for (seq = 0; seq < num_seq; seq++)
+  {
     // Seq loop
     vector<ORB_SLAM3::IMU::Point> vImuMeas;
     double t_rect = 0.f;
@@ -144,19 +154,22 @@ int main(int argc, char **argv) {
     double t_track = 0.f;
     int num_rect = 0;
     int proccIm = 0;
-    for (int ni = 0; ni < nImages[seq]; ni++, proccIm++) {
+    for (int ni = 0; ni < nImages[seq]; ni++, proccIm++)
+    {
       // Read left and right images from file
       imLeft = cv::imread(vstrImageLeft[seq][ni], cv::IMREAD_UNCHANGED);
       imRight = cv::imread(vstrImageRight[seq][ni], cv::IMREAD_UNCHANGED);
 
-      if (imLeft.empty()) {
+      if (imLeft.empty())
+      {
         cerr << endl
              << "Failed to load image at: " << string(vstrImageLeft[seq][ni])
              << endl;
         return 1;
       }
 
-      if (imRight.empty()) {
+      if (imRight.empty())
+      {
         cerr << endl
              << "Failed to load image at: " << string(vstrImageRight[seq][ni])
              << endl;
@@ -208,7 +221,8 @@ int main(int argc, char **argv) {
         usleep((T - ttrack) * 1e6); // 1e6
     }
 
-    if (seq < num_seq - 1) {
+    if (seq < num_seq - 1)
+    {
       cout << "Changing the dataset" << endl;
 
       SLAM.ChangeDataset();
@@ -218,12 +232,15 @@ int main(int argc, char **argv) {
   SLAM.Shutdown();
 
   // Save camera trajectory
-  if (bFileName) {
+  if (bFileName)
+  {
     const string kf_file = "kf_" + string(argv[argc - 1]) + ".txt";
     const string f_file = "f_" + string(argv[argc - 1]) + ".txt";
     SLAM.SaveTrajectoryEuRoC(f_file);
     SLAM.SaveKeyFrameTrajectoryEuRoC(kf_file);
-  } else {
+  }
+  else
+  {
     SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
     SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
   }
@@ -233,16 +250,19 @@ int main(int argc, char **argv) {
 
 void LoadImages(const string &strPathLeft, const string &strPathRight,
                 const string &strPathTimes, vector<string> &vstrImageLeft,
-                vector<string> &vstrImageRight, vector<double> &vTimeStamps) {
+                vector<string> &vstrImageRight, vector<double> &vTimeStamps)
+{
   ifstream fTimes;
   fTimes.open(strPathTimes.c_str());
   vTimeStamps.reserve(5000);
   vstrImageLeft.reserve(5000);
   vstrImageRight.reserve(5000);
-  while (!fTimes.eof()) {
+  while (!fTimes.eof())
+  {
     string s;
     getline(fTimes, s);
-    if (!s.empty()) {
+    if (!s.empty())
+    {
       stringstream ss;
       ss << s;
       vstrImageLeft.push_back(strPathLeft + "/" + ss.str() + ".png");
@@ -255,25 +275,29 @@ void LoadImages(const string &strPathLeft, const string &strPathRight,
 }
 
 void LoadIMU(const string &strImuPath, vector<double> &vTimeStamps,
-             vector<cv::Point3f> &vAcc, vector<cv::Point3f> &vGyro) {
+             vector<cv::Point3f> &vAcc, vector<cv::Point3f> &vGyro)
+{
   ifstream fImu;
   fImu.open(strImuPath.c_str());
   vTimeStamps.reserve(5000);
   vAcc.reserve(5000);
   vGyro.reserve(5000);
 
-  while (!fImu.eof()) {
+  while (!fImu.eof())
+  {
     string s;
     getline(fImu, s);
     if (s[0] == '#')
       continue;
 
-    if (!s.empty()) {
+    if (!s.empty())
+    {
       string item;
       size_t pos = 0;
       double data[7];
       int count = 0;
-      while ((pos = s.find(',')) != string::npos) {
+      while ((pos = s.find(',')) != string::npos)
+      {
         item = s.substr(0, pos);
         data[count++] = stod(item);
         s.erase(0, pos + 1);
