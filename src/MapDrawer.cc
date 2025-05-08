@@ -212,6 +212,16 @@ namespace ORB_SLAM3
       auto val = getHeatMapColor(vpMPs[i]->getProbExists());
       // std::cout << "Color: " << red << ", " << green << ", " << blue << std::endl;
       glColor3f(val[0], val[1], val[2]);
+
+      // if (vpMPs[i]->isCurrentlySeen)
+      // {
+      //   glColor3f(1, 0, 0);
+      // }
+      // else
+      // {
+      //   glColor3f(0, 1, 0);
+      // }
+
       // #endif
       Eigen::Matrix<float, 3, 1> pos = vpMPs[i]->GetWorldPos();
       glVertex3f(pos(0), pos(1), pos(2));

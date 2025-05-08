@@ -2510,14 +2510,23 @@ namespace ORB_SLAM3
           pMP->mbTrackInView = false;
           pMP->mnLastFrameSeen = mCurrentFrame.mnId;
           nmatches--;
-          std::cout << "Reducing probExists for MP " << pMP->mnId << std::endl;
-          pMP->offsetProbExists(-0.25);
         }
         else if (mCurrentFrame.mvpMapPoints[i]->Observations() > 0)
         {
           nmatchesMap++;
-          MapPoint *pMP = mCurrentFrame.mvpMapPoints[i];
-          pMP->offsetProbExists(1);
+        }
+      }
+
+      // We now have our list of expected map points based on the optimized camera location.
+      // We can go through our expected keypoints, and report any which are not in the current frame as
+      // having a reduced probability of existing.
+      auto expectedKeypoints = pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
+      for (auto mapPoint : expectedKeypoints)
+      {
+        if (std::find(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), mapPoint) == mCurrentFrame.mvpMapPoints.end())
+        {
+          std::cout << "Reducing probability for MP " << mapPoint->mnId << std::endl;
+          mapPoint->offsetProbExists(-0.5);
         }
       }
     }
@@ -2789,6 +2798,18 @@ namespace ORB_SLAM3
         }
         else if (mSensor == System::STEREO)
           mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
+      }
+    }
+
+    // We now have our list of expected map points based on the optimized camera location.
+    // We can go through our expected keypoints, and report any which are not in the current frame as
+    // having a reduced probability of existing.
+    auto expectedKeypoints = pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
+    for (auto mapPoint : expectedKeypoints)
+    {
+      if (std::find(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), mapPoint) == mCurrentFrame.mvpMapPoints.end())
+      {
+        mapPoint->offsetProbExists(-0.01);
       }
     }
 

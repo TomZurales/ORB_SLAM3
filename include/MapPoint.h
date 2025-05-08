@@ -165,6 +165,7 @@ namespace ORB_SLAM3
 #ifdef TCZ_THESIS
     float getProbExists();
     void offsetProbExists(float offset);
+    bool isCurrentlySeen = false;
 #endif
 
   public:

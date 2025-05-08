@@ -9,6 +9,7 @@ namespace ORB_SLAM3
 
     std::vector<MapPoint *> PointProbability::GetExpectedMapPoints(Frame *pFrame)
     {
+        auto out = std::vector<MapPoint *>();
         // Get the map
         auto map = pAtlas->GetCurrentMap();
 
@@ -32,19 +33,32 @@ namespace ORB_SLAM3
         for (auto mapPoint : mapPoints)
         {
             if (!mapPoint)
+            {
+                mapPoint->isCurrentlySeen = false;
                 continue;
+            }
             auto pointPos = mapPoint->GetWorldPos();
 
             // auto pointInCameraCoords = pose.inverse() * Sophus::Vector3f(pointPos);
             // if (pointInCameraCoords.z() <= 0)
             // {
+            //     mapPoint->isCurrentlySeen = false;
             //     continue;
             // }
-            // std::cout << "Unnormalized: " << pointInCameraCoords << std::endl;
-            // // auto pixelCoords = K * Sophus::Vector3f(pointPos.x() / pointPos.z(), pointPos.y() / pointPos.z(), 1);
-            // // std::cout << "My Pixel Coords: " << pixelCoords << std::endl;
 
-            // std::cout << "Their Pixel Coords: " << pSettings->camera1()->project(pointInCameraCoords) << std::endl;
+            auto point = pSettings->camera1()->project(pointPos);
+
+            if (point[0] <= 752 && point[1] <= 480)
+            {
+                mapPoint->isCurrentlySeen = true;
+                out.push_back(mapPoint);
+            }
+            else
+            {
+                mapPoint->isCurrentlySeen = false;
+            }
         }
+
+        return out;
     }
 }
