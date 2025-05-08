@@ -80,6 +80,7 @@ src/GeometricTools.cc
 src/TwoViewReconstruction.cc
 src/Config.cc
 src/Settings.cc
+src/PointProbability.cc
 include/System.h
 include/Tracking.h
 include/LocalMapping.h
@@ -109,7 +110,8 @@ include/GeometricTools.h
 include/TwoViewReconstruction.h
 include/SerializationUtils.h
 include/Config.h
-include/Settings.h)
+include/Settings.h
+include/PointProbability.h)
 
 add_subdirectory(Thirdparty/g2o)
 
@@ -188,8 +190,8 @@ add_executable(stereo_inertial_euroc
         Examples/Stereo-Inertial/stereo_inertial_euroc.cc)
 target_link_libraries(stereo_inertial_euroc ${PROJECT_NAME})
 
-# add_executable(stereo_inertial_tum_vi
-#         Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
-# target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
+add_executable(stereo_inertial_tum_vi
+        Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
+target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
 
 # set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Calibration)

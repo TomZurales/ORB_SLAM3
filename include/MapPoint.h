@@ -162,9 +162,10 @@ namespace ORB_SLAM3
     void PostLoad(map<long unsigned int, KeyFrame *> &mpKFid,
                   map<long unsigned int, MapPoint *> &mpMPid);
 
-    // #ifdef TCZ_THESIS
+#ifdef TCZ_THESIS
     float getProbExists();
-    // #endif
+    void offsetProbExists(float offset);
+#endif
 
   public:
     long unsigned int mnId;

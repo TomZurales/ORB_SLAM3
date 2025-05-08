@@ -40,7 +40,7 @@ namespace ORB_SLAM3
     mpReplaced = static_cast<MapPoint *>(NULL);
 
     // #ifdef TCZ_THESIS
-    probExists = static_cast<float>(std::rand()) / RAND_MAX;
+    probExists = 1;
     // #endif
   }
 
@@ -65,7 +65,7 @@ namespace ORB_SLAM3
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
     // #ifdef TCZ_THESIS
-    probExists = static_cast<float>(std::rand()) / RAND_MAX;
+    probExists = 1;
     // #endif
   }
 
@@ -92,7 +92,7 @@ namespace ORB_SLAM3
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
     // #ifdef TCZ_THESIS
-    probExists = static_cast<float>(std::rand()) / RAND_MAX;
+    probExists = 1;
     // #endif
   }
 
@@ -142,7 +142,7 @@ namespace ORB_SLAM3
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
     // #ifdef TCZ_THESIS
-    probExists = static_cast<float>(std::rand()) / RAND_MAX;
+    probExists = 1;
     // #endif
   }
 
@@ -705,13 +705,18 @@ namespace ORB_SLAM3
     mBackupObservationsId2.clear();
   }
 
+#ifdef TCZ_THESIS
   float MapPoint::getProbExists()
   {
-#ifdef TCZ_THESIS
     return this->probExists;
-#else
-    return 0.0f;
-#endif
   }
+
+  void MapPoint::offsetProbExists(float offset)
+  {
+    this->probExists += offset;
+    float newProbExists = std::max<float>(0.0, std::min<float>(1.0, this->probExists));
+    this->probExists = newProbExists;
+  }
+#endif
 
 } // namespace ORB_SLAM3
