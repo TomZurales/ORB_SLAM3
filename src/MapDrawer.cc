@@ -210,8 +210,15 @@ namespace ORB_SLAM3
 
       // #ifdef TCZ_THESIS
       auto val = getHeatMapColor(vpMPs[i]->getProbExists());
+      // if (vpMPs[i]->getProbExists() <= 0.2)
+      // {
+      //   continue;
+      // }
       // std::cout << "Color: " << red << ", " << green << ", " << blue << std::endl;
-      glColor3f(val[0], val[1], val[2]);
+      // glColor3f(
+      //     static_cast<float>(rand()) / static_cast<float>(RAND_MAX),
+      //     static_cast<float>(rand()) / static_cast<float>(RAND_MAX),
+      //     static_cast<float>(rand()) / static_cast<float>(RAND_MAX));
 
       // if (vpMPs[i]->isCurrentlySeen)
       // {
@@ -221,9 +228,11 @@ namespace ORB_SLAM3
       // {
       //   glColor3f(0, 1, 0);
       // }
+      glColor3f(val[0], val[1], val[2]);
 
       // #endif
-      Eigen::Matrix<float, 3, 1> pos = vpMPs[i]->GetWorldPos();
+      Eigen::Matrix<float, 3, 1>
+          pos = vpMPs[i]->GetWorldPos();
       glVertex3f(pos(0), pos(1), pos(2));
     }
     glEnd();

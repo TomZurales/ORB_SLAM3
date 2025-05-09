@@ -2525,8 +2525,11 @@ namespace ORB_SLAM3
       {
         if (std::find(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), mapPoint) == mCurrentFrame.mvpMapPoints.end())
         {
-          std::cout << "Reducing probability for MP " << mapPoint->mnId << std::endl;
-          mapPoint->offsetProbExists(-0.5);
+          mapPoint->offsetProbExists(-0.01);
+        }
+        else
+        {
+          mapPoint->offsetProbExists(1);
         }
       }
     }
@@ -2810,6 +2813,10 @@ namespace ORB_SLAM3
       if (std::find(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), mapPoint) == mCurrentFrame.mvpMapPoints.end())
       {
         mapPoint->offsetProbExists(-0.01);
+      }
+      else
+      {
+        mapPoint->offsetProbExists(1);
       }
     }
 
