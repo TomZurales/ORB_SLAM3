@@ -12,7 +12,7 @@ namespace ORB_SLAM3
   {
     if (pointData.find(mp) == pointData.end())
     {
-      pointData[mp] = PointProbabilityMetadataIcos();
+      pointData[mp] = PointProbabilityMetadataIcos(mp);
     }
     return pointData[mp];
   }
@@ -62,17 +62,29 @@ namespace ORB_SLAM3
     {
       if (pointData.find(point) == pointData.end())
       {
-        pointData[point] = PointProbabilityMetadataIcos();
+        pointData[point] = PointProbabilityMetadataIcos(point);
       }
+
+      auto pointProbMeta = pointData[point];
+
+      float dist = (point->GetWorldPos() - pFrame->GetPose().translation().cast<float>()).norm();
+      int face = pointProbMeta.getClosestIcosFaceIndex(pFrame->GetPose().translation().cast<float>());
+
       if (std::find(pFrame->mvpMapPoints.begin(), pFrame->mvpMapPoints.end(), point) == pFrame->mvpMapPoints.end())
       {
         // Expected to see point, but did not
-        pointData[point].offsetProbExists(-0.01);
+        auto minDist = pointProbMeta.getIcosDist(face);
+
+        if (dist <= minDist)
+        {
+          pointProbMeta.offsetProbExists(-0.01);
+        }
       }
       else
       {
         // Expected to see point, and did
-        pointData[point].offsetProbExists(1);
+        pointProbMeta.setIcosDist(face, dist);
+        pointProbMeta.offsetProbExists(1);
       }
     }
   }
