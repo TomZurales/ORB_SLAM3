@@ -1,0 +1,13 @@
+{
+  "cmake.buildToolArgs": [
+    "-j2"
+  ],
+  "cmake.debugConfig": {
+    "args": [
+      "/home/tom/workspace/Thesis/slam_systems/ORB_SLAM3/Vocabulary/ORBvoc.txt",
+      "/home/tom/workspace/Thesis/slam_systems/ORB_SLAM3/Examples/Stereo-Inertial/EuRoC.yaml",
+      "/home/tom/workspace/Thesis/datasets/EuRoC/V1_01",
+      "/home/tom/workspace/Thesis/slam_systems/ORB_SLAM3/Examples/Stereo-Inertial/EuRoC_TimeStamps/V101.txt"
+    ]
+  },
+}
