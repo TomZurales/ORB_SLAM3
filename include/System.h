@@ -40,7 +40,7 @@
 #include "Settings.h"
 #include "Tracking.h"
 #include "Viewer.h"
-#include "PointProbability.h";
+#include "PointProbability.h"
 
 namespace ORB_SLAM3
 {

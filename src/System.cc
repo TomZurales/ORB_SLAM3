@@ -199,9 +199,12 @@ namespace ORB_SLAM3
     if (mSensor == IMU_STEREO || mSensor == IMU_MONOCULAR || mSensor == IMU_RGBD)
       mpAtlas->SetInertialSensor();
 
+    // Create PointProbability Engine
+    mpPointProbability = new PointProbability(mpAtlas, settings_);
+
     // Create Drawers. These are used by the Viewer
     mpFrameDrawer = new FrameDrawer(mpAtlas);
-    mpMapDrawer = new MapDrawer(mpAtlas, strSettingsFile, settings_);
+    mpMapDrawer = new MapDrawer(mpAtlas, strSettingsFile, settings_, mpPointProbability);
 
     // Initialize the Tracking thread
     //(it will live in the main thread of execution, the one that called this
@@ -242,8 +245,6 @@ namespace ORB_SLAM3
     mpTracker->SetLocalMapper(mpLocalMapper);
     mpTracker->SetLoopClosing(mpLoopCloser);
 
-    // Create PointProbability Engine
-    mpPointProbability = new PointProbability(mpAtlas, settings_);
     mpTracker->SetPointProbability(mpPointProbability);
 
     mpLocalMapper->SetTracker(mpTracker);

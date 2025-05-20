@@ -29,8 +29,8 @@ namespace ORB_SLAM3
 {
 
   MapDrawer::MapDrawer(Atlas *pAtlas, const string &strSettingPath,
-                       Settings *settings)
-      : mpAtlas(pAtlas)
+                       Settings *settings, PointProbability *pointProbability)
+      : mpAtlas(pAtlas), mpPointProbability(pointProbability)
   {
     if (settings)
     {
@@ -209,11 +209,13 @@ namespace ORB_SLAM3
         continue;
 
       // #ifdef TCZ_THESIS
-      auto val = getHeatMapColor(vpMPs[i]->getProbExists());
-      // if (vpMPs[i]->getProbExists() <= 0.2)
-      // {
-      //   continue;
-      // }
+      auto probExists = mpPointProbability->getPointProbabilityMetadata(vpMPs[i]).getPexists();
+      auto val = getHeatMapColor(probExists);
+      if (probExists <= 0.1)
+      {
+        // vpMPs[i]->SetBadFlag();
+        continue;
+      }
       // std::cout << "Color: " << red << ", " << green << ", " << blue << std::endl;
       // glColor3f(
       //     static_cast<float>(rand()) / static_cast<float>(RAND_MAX),

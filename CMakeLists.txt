@@ -81,6 +81,7 @@ src/TwoViewReconstruction.cc
 src/Config.cc
 src/Settings.cc
 src/PointProbability.cc
+src/PointProbabilityMetadataIcos.cc
 include/System.h
 include/Tracking.h
 include/LocalMapping.h
@@ -111,7 +112,8 @@ include/TwoViewReconstruction.h
 include/SerializationUtils.h
 include/Config.h
 include/Settings.h
-include/PointProbability.h)
+include/PointProbability.h
+include/PointProbabilityMetadataIcos.h)
 
 add_subdirectory(Thirdparty/g2o)
 

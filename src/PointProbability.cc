@@ -4,12 +4,22 @@ namespace ORB_SLAM3
 {
   PointProbability::PointProbability(Atlas *pAtlas, Settings *pSettings) : pAtlas(pAtlas), pSettings(pSettings)
   {
+    pointData = std::map<MapPoint *, PointProbabilityMetadataIcos>();
     std::cout << "Initializing the PointProbability Engine" << std::endl;
   }
 
-  std::vector<MapPoint *> PointProbability::GetExpectedMapPoints(Frame *pFrame)
+  PointProbabilityMetadataIcos PointProbability::getPointProbabilityMetadata(MapPoint *mp)
   {
-    auto out = std::vector<MapPoint *>();
+    if (pointData.find(mp) == pointData.end())
+    {
+      pointData[mp] = PointProbabilityMetadataIcos();
+    }
+    return pointData[mp];
+  }
+
+  void PointProbability::GetExpectedMapPoints(Frame *pFrame)
+  {
+    auto expectedMapPoints = std::vector<MapPoint *>();
     // Get the map
     auto map = pAtlas->GetCurrentMap();
 
@@ -31,10 +41,10 @@ namespace ORB_SLAM3
 
       auto point = pSettings->camera1()->project(pointInCameraCoords);
 
-      if (point[0] <= 752 && point[0] >= 0 && point[1] <= 480 && point[1] >= 0)
+      if (point[0] <= 700 && point[0] >= 50 && point[1] <= 430 && point[1] >= 50)
       {
         mapPoint->isCurrentlySeen = true;
-        out.push_back(mapPoint);
+        expectedMapPoints.push_back(mapPoint);
       }
       else
       {
@@ -42,6 +52,28 @@ namespace ORB_SLAM3
       }
     }
 
-    return out;
+    // return out;
+    // 'out' now contains all the map points we would expect to see based on our
+    // current estimated position. We can now go through, and update pExists
+    // for each point which we expect to see but do not, and update the validViews
+    // for each point which we expect to see and do see.
+
+    for (auto point : expectedMapPoints)
+    {
+      if (pointData.find(point) == pointData.end())
+      {
+        pointData[point] = PointProbabilityMetadataIcos();
+      }
+      if (std::find(pFrame->mvpMapPoints.begin(), pFrame->mvpMapPoints.end(), point) == pFrame->mvpMapPoints.end())
+      {
+        // Expected to see point, but did not
+        pointData[point].offsetProbExists(-0.01);
+      }
+      else
+      {
+        // Expected to see point, and did
+        pointData[point].offsetProbExists(1);
+      }
+    }
   }
 }

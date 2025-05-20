@@ -2484,7 +2484,7 @@ namespace ORB_SLAM3
     // endl;
     Optimizer::PoseOptimization(&mCurrentFrame);
 
-    auto expectedKeypoints = pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
+    pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
 
     // Discard outliers
     int nmatchesMap = 0;
@@ -2520,18 +2520,7 @@ namespace ORB_SLAM3
       // We now have our list of expected map points based on the optimized camera location.
       // We can go through our expected keypoints, and report any which are not in the current frame as
       // having a reduced probability of existing.
-      auto expectedKeypoints = pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
-      for (auto mapPoint : expectedKeypoints)
-      {
-        if (std::find(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), mapPoint) == mCurrentFrame.mvpMapPoints.end())
-        {
-          mapPoint->offsetProbExists(-0.01);
-        }
-        else
-        {
-          mapPoint->offsetProbExists(1);
-        }
-      }
+      pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
     }
 
     if (mSensor == System::IMU_MONOCULAR || mSensor == System::IMU_STEREO ||
@@ -2807,18 +2796,7 @@ namespace ORB_SLAM3
     // We now have our list of expected map points based on the optimized camera location.
     // We can go through our expected keypoints, and report any which are not in the current frame as
     // having a reduced probability of existing.
-    auto expectedKeypoints = pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
-    for (auto mapPoint : expectedKeypoints)
-    {
-      if (std::find(mCurrentFrame.mvpMapPoints.begin(), mCurrentFrame.mvpMapPoints.end(), mapPoint) == mCurrentFrame.mvpMapPoints.end())
-      {
-        mapPoint->offsetProbExists(-0.01);
-      }
-      else
-      {
-        mapPoint->offsetProbExists(1);
-      }
-    }
+    pPointProbability->GetExpectedMapPoints(&mCurrentFrame);
 
     // Decide if the tracking was succesful
     // More restrictive if there was a relocalization recently

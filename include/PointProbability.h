@@ -1,21 +1,25 @@
 #pragma once
 
 #include <vector>
+#include <map>
 
 #include "Atlas.h"
 #include "Frame.h"
 #include "Settings.h"
+#include "PointProbabilityMetadataIcos.h"
 
 namespace ORB_SLAM3
 {
-    class PointProbability
-    {
-        Atlas *pAtlas;
-        Settings *pSettings;
+  class PointProbability
+  {
+    Atlas *pAtlas;
+    Settings *pSettings;
 
-    public:
-        PointProbability(Atlas *pAtlas, Settings *pSettings);
+    std::map<MapPoint *, PointProbabilityMetadataIcos> pointData;
 
-        std::vector<MapPoint *> GetExpectedMapPoints(Frame *pFrame);
-    };
+  public:
+    PointProbability(Atlas *pAtlas, Settings *pSettings);
+    PointProbabilityMetadataIcos getPointProbabilityMetadata(MapPoint *mp);
+    void GetExpectedMapPoints(Frame *pFrame);
+  };
 }
