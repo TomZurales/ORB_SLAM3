@@ -1,0 +1,7 @@
+Implement Von Mises-Fisher distribution backend model
+Implement graphics for continuous model
+Fix coordinate frames
+Integrate into ORB_SLAM
+Create dataset hardware
+Record datasets
+Run analysis
