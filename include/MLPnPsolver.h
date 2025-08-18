@@ -57,6 +57,8 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <random>
+#include <unordered_set>
 
 namespace ORB_SLAM3 {
 class MLPnPsolver {
@@ -239,6 +241,9 @@ private:
   vector<float> mvMaxError;
 
   GeometricCamera *mpCamera;
+
+  std::vector<float> vbeeWeights;
+
 };
 
 } // namespace ORB_SLAM3

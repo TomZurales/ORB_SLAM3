@@ -9,8 +9,8 @@ add_compile_definitions(TCZ_THESIS)
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall   -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Og -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Og -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 
@@ -39,6 +39,7 @@ endif()
 
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
+find_package(SQLiteCpp REQUIRED)
 
 include_directories(
 ${PROJECT_SOURCE_DIR}
@@ -48,6 +49,8 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/Sophus
 ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
 )
+
+# add_subdirectory(VBEE)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
@@ -80,7 +83,10 @@ src/GeometricTools.cc
 src/TwoViewReconstruction.cc
 src/Config.cc
 src/Settings.cc
-src/PointProbability.cc
+src/DatabaseManager.cc
+src/VBEE/vbee.cc
+src/VBEE/observability_model.cc
+src/VBEE/existence_probability_estimator.cc
 include/System.h
 include/Tracking.h
 include/LocalMapping.h
@@ -111,7 +117,13 @@ include/TwoViewReconstruction.h
 include/SerializationUtils.h
 include/Config.h
 include/Settings.h
-include/PointProbability.h)
+include/DatabaseManager.h
+include/VBEE/vbee.h
+include/VBEE/viewpoint.h
+include/VBEE/observation.h
+include/VBEE/observability_model.h
+include/VBEE/existence_probability_estimator.h
+)
 
 add_subdirectory(Thirdparty/g2o)
 
@@ -119,79 +131,16 @@ target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
+SQLiteCpp
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 -lboost_serialization
 -lcrypto
 )
 
-
-# Build examples
-
-# RGB-D examples
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D)
-
-# add_executable(rgbd_tum
-#         Examples/RGB-D/rgbd_tum.cc)
-# target_link_libraries(rgbd_tum ${PROJECT_NAME})
-
-# # RGB-D inertial examples
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D-Inertial)
-
 # #Stereo examples
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Stereo)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/VBEEResults)
 
-# add_executable(stereo_kitti
-#         Examples/Stereo/stereo_kitti.cc)
-# target_link_libraries(stereo_kitti ${PROJECT_NAME})
-
-# add_executable(stereo_euroc
-#         Examples/Stereo/stereo_euroc.cc)
-# target_link_libraries(stereo_euroc ${PROJECT_NAME})
-
-# add_executable(stereo_tum_vi
-#         Examples/Stereo/stereo_tum_vi.cc)
-# target_link_libraries(stereo_tum_vi ${PROJECT_NAME})
-
-# #Monocular examples
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular)
-
-# add_executable(mono_tum
-#         Examples/Monocular/mono_tum.cc)
-# target_link_libraries(mono_tum ${PROJECT_NAME})
-
-# add_executable(mono_kitti
-#         Examples/Monocular/mono_kitti.cc)
-# target_link_libraries(mono_kitti ${PROJECT_NAME})
-
-# add_executable(mono_euroc
-#         Examples/Monocular/mono_euroc.cc)
-# target_link_libraries(mono_euroc ${PROJECT_NAME})
-
-# add_executable(mono_tum_vi
-#         Examples/Monocular/mono_tum_vi.cc)
-# target_link_libraries(mono_tum_vi ${PROJECT_NAME})
-
-# #Monocular inertial examples
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular-Inertial)
-
-# add_executable(mono_inertial_euroc
-#         Examples/Monocular-Inertial/mono_inertial_euroc.cc)
-# target_link_libraries(mono_inertial_euroc ${PROJECT_NAME})
-
-# add_executable(mono_inertial_tum_vi
-#         Examples/Monocular-Inertial/mono_inertial_tum_vi.cc)
-# target_link_libraries(mono_inertial_tum_vi ${PROJECT_NAME})
-
-#Stereo Inertial examples
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Stereo-Inertial)
-
-add_executable(stereo_inertial_euroc
-        Examples/Stereo-Inertial/stereo_inertial_euroc.cc)
-target_link_libraries(stereo_inertial_euroc ${PROJECT_NAME})
-
-add_executable(stereo_inertial_tum_vi
-        Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
-target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
-
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Calibration)
+add_executable(stereo_vbee
+        Examples/Stereo/stereo_vbee.cc)
+target_link_libraries(stereo_vbee ${PROJECT_NAME})

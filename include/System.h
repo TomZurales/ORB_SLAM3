@@ -40,7 +40,7 @@
 #include "Settings.h"
 #include "Tracking.h"
 #include "Viewer.h"
-#include "PointProbability.h";
+// #include "PointProbability.h"
 
 namespace ORB_SLAM3
 {
@@ -77,7 +77,7 @@ namespace ORB_SLAM3
   class LocalMapping;
   class LoopClosing;
   class Settings;
-  class PointProbability;
+//   class PointProbability;
 
   class System
   {
@@ -201,6 +201,13 @@ namespace ORB_SLAM3
 
     float GetImageScale();
 
+    void GlobalBundleAdjustment();
+
+    bool RelocalizeFrame(const cv::Mat &imLeft, const cv::Mat &imRight,
+                                   const double &timestamp,
+                                   const vector<IMU::Point> &vImuMeas,
+                                   string filename);
+
   private:
     void SaveAtlas(int type);
     bool LoadAtlas(int type);
@@ -242,7 +249,7 @@ namespace ORB_SLAM3
     MapDrawer *mpMapDrawer;
 
     // The PointProbability engine updates the probabilty of each map point's existance
-    PointProbability *mpPointProbability;
+    // PointProbability *mpPointProbability;
 
     // System threads: Local Mapping, Loop Closing, Viewer.
     // The Tracking thread "lives" in the main execution thread that creates the
@@ -277,6 +284,9 @@ namespace ORB_SLAM3
     string mStrVocabularyFilePath;
 
     Settings *settings_;
+
+    int vbee_loop_count = 1;
+    std::map<MapPoint *, Observation> bestObservations;
   };
 
 } // namespace ORB_SLAM3

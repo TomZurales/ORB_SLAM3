@@ -291,7 +291,7 @@ void Settings::readCamera2(cv::FileStorage &fSettings) {
   bool found;
   vector<float> vCalibration;
   if (cameraType_ == PinHole) {
-    bNeedToRectify_ = true;
+    // bNeedToRectify_ = true;
 
     // Read intrinsic parameters
     float fx = readParameter<float>(fSettings, "Camera2.fx", found);

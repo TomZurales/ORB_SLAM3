@@ -36,6 +36,8 @@
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/serialization.hpp>
 
+#include "VBEE/vbee.h"
+
 namespace ORB_SLAM3
 {
 
@@ -102,6 +104,8 @@ namespace ORB_SLAM3
 
       ar & mfMinDistance;
       ar & mfMaxDistance;
+
+      ar & vbee;
     }
 
   public:
@@ -163,9 +167,10 @@ namespace ORB_SLAM3
                   map<long unsigned int, MapPoint *> &mpMPid);
 
 #ifdef TCZ_THESIS
-    float getProbExists();
-    void offsetProbExists(float offset);
-    bool isCurrentlySeen = false;
+    // float getProbExists();
+    // void offsetProbExists(float offset);
+    // bool isCurrentlySeen = false;
+    VBEE vbee;
 #endif
 
   public:
@@ -216,6 +221,10 @@ namespace ORB_SLAM3
 
     // #ifdef TCZ_THESIS
     float probExists = 0;
+    bool isCandidate = false;
+    bool isInFrustum = false;
+    bool isCurrentlySeen = false;
+
     // #endif
 
   protected:

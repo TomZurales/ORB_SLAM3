@@ -42,6 +42,9 @@ namespace ORB_SLAM3
     // #ifdef TCZ_THESIS
     probExists = 1;
     // #endif
+    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.1};
+    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
+    vbee = VBEE(vbeeParams, modelParams);
   }
 
   MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map *pMap)
@@ -67,6 +70,9 @@ namespace ORB_SLAM3
     // #ifdef TCZ_THESIS
     probExists = 1;
     // #endif
+    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.2};
+    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
+    vbee = VBEE(vbeeParams, modelParams);
   }
 
   MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame *pRefKF,
@@ -94,6 +100,9 @@ namespace ORB_SLAM3
     // #ifdef TCZ_THESIS
     probExists = 1;
     // #endif
+    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.2};
+    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
+    vbee = VBEE(vbeeParams, modelParams);
   }
 
   MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
@@ -144,6 +153,9 @@ namespace ORB_SLAM3
     // #ifdef TCZ_THESIS
     probExists = 1;
     // #endif
+    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.2};
+    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
+    vbee = VBEE(vbeeParams, modelParams);
   }
 
   void MapPoint::SetWorldPos(const Eigen::Vector3f &Pos)
@@ -343,6 +355,7 @@ namespace ORB_SLAM3
     pMP->IncreaseFound(nfound);
     pMP->IncreaseVisible(nvisible);
     pMP->ComputeDistinctiveDescriptors();
+    pMP->vbee.Merge(this->vbee);
 
     mpMap->EraseMapPoint(this);
   }
@@ -705,18 +718,18 @@ namespace ORB_SLAM3
     mBackupObservationsId2.clear();
   }
 
-#ifdef TCZ_THESIS
-  float MapPoint::getProbExists()
-  {
-    return this->probExists;
-  }
+// #ifdef TCZ_THESIS
+//   float MapPoint::getProbExists()
+//   {
+//     return this->probExists;
+//   }
 
-  void MapPoint::offsetProbExists(float offset)
-  {
-    this->probExists += offset;
-    float newProbExists = std::max<float>(0.0, std::min<float>(1.0, this->probExists));
-    this->probExists = newProbExists;
-  }
-#endif
+//   void MapPoint::offsetProbExists(float offset)
+//   {
+//     this->probExists += offset;
+//     float newProbExists = std::max<float>(0.0, std::min<float>(1.0, this->probExists));
+//     this->probExists = newProbExists;
+//   }
+// #endif
 
 } // namespace ORB_SLAM3

@@ -1,24 +1,3 @@
-/**
- * This file is part of ORB-SLAM3
- *
- * Copyright (C) 2017-2021 Carlos Campos, Richard Elvira, Juan J. Gómez
- * Rodríguez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
- * Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós,
- * University of Zaragoza.
- *
- * ORB-SLAM3 is free software: you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation, either version 3 of the License, or (at your option) any later
- * version.
- *
- * ORB-SLAM3 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * ORB-SLAM3. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -39,19 +18,17 @@ void LoadImages(const string &strPathLeft, const string &strPathRight,
 
 int main(int argc, char **argv)
 {
-    DatabaseManager dbManager("orbslam3.db");
-    if (argc < 5)
+    if(argc != 2)
     {
-        cerr
-            << endl
-            << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings "
-               "path_to_sequence_folder_1 path_to_times_file_1 "
-               "(path_to_image_folder_2 path_to_times_file_2 ... "
-               "path_to_image_folder_N path_to_times_file_N) (trajectory_file_name)"
-            << endl;
-
+        std::cout << "Usage: stereo_vbee <test name>" << std::endl;
         return 1;
     }
+
+    std::string test_name(argv[1]);
+    std::shared_ptr<DatabaseManager> dbManager = std::make_shared<DatabaseManager>(test_name + ".db");
+
+    std::cout << "Number of trajectories in the database: " << dbManager->getNumTrajectories() << std::endl;
+    return 0;
 
     const int num_seq = (argc - 3) / 2;
     cout << "num_seq = " << num_seq << endl;
