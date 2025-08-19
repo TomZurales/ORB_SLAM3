@@ -39,7 +39,6 @@
 #include "System.h"
 #include "Viewer.h"
 // #include "PointProbability.h"
-#include "VBEE/vbee.h"
 
 #include "GeometricCamera.h"
 

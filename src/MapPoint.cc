@@ -21,6 +21,7 @@
 
 #include "MapPoint.h"
 #include "ORBmatcher.h"
+#include "VBEE/vbee.h"
 
 #include <mutex>
 
@@ -38,7 +39,7 @@ namespace ORB_SLAM3
         mpReplaced(static_cast<MapPoint *>(NULL))
   {
     mpReplaced = static_cast<MapPoint *>(NULL);
-    vbee = VBEE(mnId);
+    vbee.reset(new VBEE(mnId));
   }
 
   MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map *pMap)
@@ -61,7 +62,7 @@ namespace ORB_SLAM3
     // conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
-    vbee = VBEE(mnId);
+    vbee.reset(new VBEE(mnId));
   }
 
   MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame *pRefKF,
@@ -86,7 +87,7 @@ namespace ORB_SLAM3
     // conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
-    vbee = VBEE(mnId);
+    vbee.reset(new VBEE(mnId));
   }
 
   MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
@@ -134,7 +135,7 @@ namespace ORB_SLAM3
     // conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
-    vbee = VBEE(mnId);
+    vbee.reset(new VBEE(mnId));
   }
 
   void MapPoint::SetWorldPos(const Eigen::Vector3f &Pos)
@@ -334,7 +335,7 @@ namespace ORB_SLAM3
     pMP->IncreaseFound(nfound);
     pMP->IncreaseVisible(nvisible);
     pMP->ComputeDistinctiveDescriptors();
-    pMP->vbee.Merge(this->vbee);
+    pMP->vbee->Merge(*vbee);
 
     mpMap->EraseMapPoint(this);
   }
@@ -696,6 +697,8 @@ namespace ORB_SLAM3
     mBackupObservationsId1.clear();
     mBackupObservationsId2.clear();
   }
+
+  MapPoint::~MapPoint() = default;
 
 // #ifdef TCZ_THESIS
 //   float MapPoint::getProbExists()

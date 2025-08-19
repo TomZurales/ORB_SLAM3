@@ -36,7 +36,7 @@
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/serialization.hpp>
 
-#include "VBEE/vbee.h"
+class VBEE;
 
 namespace ORB_SLAM3
 {
@@ -104,8 +104,6 @@ namespace ORB_SLAM3
 
       ar & mfMinDistance;
       ar & mfMaxDistance;
-
-      ar & vbee;
     }
 
   public:
@@ -117,6 +115,8 @@ namespace ORB_SLAM3
              KeyFrame *pHostKF, Map *pMap);
     MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
              const int &idxF);
+
+    ~MapPoint();
 
     void SetWorldPos(const Eigen::Vector3f &Pos);
     Eigen::Vector3f GetWorldPos();
@@ -170,7 +170,7 @@ namespace ORB_SLAM3
     // float getProbExists();
     // void offsetProbExists(float offset);
     // bool isCurrentlySeen = false;
-    VBEE vbee;
+    std::unique_ptr<VBEE> vbee;
 #endif
 
   public:

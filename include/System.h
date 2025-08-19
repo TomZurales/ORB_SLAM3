@@ -40,6 +40,7 @@
 #include "Settings.h"
 #include "Tracking.h"
 #include "Viewer.h"
+#include "VBEE/observation.h"
 // #include "PointProbability.h"
 
 namespace ORB_SLAM3
@@ -107,6 +108,8 @@ namespace ORB_SLAM3
     System(const string &strVocFile, const string &strSettingsFile,
            const eSensor sensor, const bool bUseViewer = true,
            const int initFr = 0, const string &strSequence = std::string());
+
+    ~System();
 
     // Proccess the given stereo frame. Images must be synchronized and rectified.
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to

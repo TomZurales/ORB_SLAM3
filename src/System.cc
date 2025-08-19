@@ -36,6 +36,8 @@
 #include <thread>
 #include <unordered_set>
 #include "VBEE/observation.h"
+#include "VBEE/vbee.h"
+#include "DatabaseManager.h"
 
 namespace ORB_SLAM3
 {
@@ -391,7 +393,6 @@ namespace ORB_SLAM3
         mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
         mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
 
-        
         // Thesis Implementation
 
         std::vector<MapPoint *> seenMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
@@ -403,21 +404,24 @@ namespace ORB_SLAM3
             if (outliers[i] || !seenMapPoints[i] || seenMapPoints[i]->isBad())
                 continue;
 
-            if(bestObservations.find(seenMapPoints[i]) != bestObservations.end())
+            if (bestObservations.find(seenMapPoints[i]) != bestObservations.end())
             {
                 // If the map point was previously not seen, replace it with the current seen operation
-                if(bestObservations[seenMapPoints[i]].s == 0.0)
+                if (bestObservations[seenMapPoints[i]].s == 0.0)
                 {
                     Observation o = Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() - seenMapPoints[i]->GetWorldPos()).normalized(), .s = 1.0};
                     bestObservations[seenMapPoints[i]] = o;
-                    seenMapPoints[i]->vbee.SetSeenStatus(SeenStatus::SEEN);
-
-                } else {
+                    seenMapPoints[i]->vbee->SetSeenStatus(SeenStatus::SEEN);
+                }
+                else
+                {
                     continue;
                 }
-            } else {
+            }
+            else
+            {
                 // If the map point has not yet been seen, add it
-                seenMapPoints[i]->vbee.SetSeenStatus(SeenStatus::SEEN);
+                seenMapPoints[i]->vbee->SetSeenStatus(SeenStatus::SEEN);
                 Observation o = Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() - seenMapPoints[i]->GetWorldPos()).normalized(), .s = 1.0};
                 bestObservations[seenMapPoints[i]] = o;
             }
@@ -438,28 +442,30 @@ namespace ORB_SLAM3
             if (!mp)
                 continue;
 
-            if(bestObservations.find(mp) != bestObservations.end())
+            if (bestObservations.find(mp) != bestObservations.end())
                 continue;
-            
+
             if (mp->isBad())
                 continue;
-            
+
             if (mpTracker->mCurrentFrame.isInFrustumSimple(mp, 0.1, 10))
             {
                 Observation o = Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() - mp->GetWorldPos()).normalized(), .s = 0.0};
                 bestObservations[mp] = o;
-                mp->vbee.SetSeenStatus(SeenStatus::NOT_SEEN);
-            } else {
-                mp->vbee.SetSeenStatus(SeenStatus::ELSEWHERE);
+                mp->vbee->SetSeenStatus(SeenStatus::NOT_SEEN);
+            }
+            else
+            {
+                mp->vbee->SetSeenStatus(SeenStatus::ELSEWHERE);
             }
         }
         vbee_loop_count++;
-        if(vbee_loop_count % 10 == 0)
+        if (vbee_loop_count % 10 == 0)
         {
-            for(auto observation : bestObservations)
+            for (auto observation : bestObservations)
             {
-                float new_p_e = observation.first->vbee.Update(observation.second);
-                if(new_p_e < 0.1)
+                float new_p_e = observation.first->vbee->Update(observation.second);
+                if (new_p_e < 0.1)
                 {
                     observation.first->SetBadFlag();
                     std::cout << "Removing Map Point " << observation.first->mnId << std::endl;
@@ -1313,6 +1319,8 @@ namespace ORB_SLAM3
                 f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
                   << twb(0) << " " << twb(1) << " " << twb(2) << " " << q.x() << " "
                   << q.y() << " " << q.z() << " " << q.w() << endl;
+
+                DatabaseManager::Instance().addKeyframePose(pKF->mTimeStamp, twb(0), twb(1), twb(2), q.x(), q.y(), q.z(), q.w());
             }
             else
             {
@@ -1322,6 +1330,7 @@ namespace ORB_SLAM3
                 f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
                   << t(0) << " " << t(1) << " " << t(2) << " " << q.x() << " " << q.y()
                   << " " << q.z() << " " << q.w() << endl;
+                DatabaseManager::Instance().addKeyframePose(pKF->mTimeStamp, t(0), t(1), t(2), q.x(), q.y(), q.z(), q.w());
             }
         }
         f.close();
@@ -1357,6 +1366,7 @@ namespace ORB_SLAM3
                 f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
                   << twb(0) << " " << twb(1) << " " << twb(2) << " " << q.x() << " "
                   << q.y() << " " << q.z() << " " << q.w() << endl;
+                DatabaseManager::Instance().addKeyframePose(pKF->mTimeStamp, twb(0), twb(1), twb(2), q.x(), q.y(), q.z(), q.w());
             }
             else
             {
@@ -1366,6 +1376,7 @@ namespace ORB_SLAM3
                 f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
                   << t(0) << " " << t(1) << " " << t(2) << " " << q.x() << " " << q.y()
                   << " " << q.z() << " " << q.w() << endl;
+                DatabaseManager::Instance().addKeyframePose(pKF->mTimeStamp, t(0), t(1), t(2), q.x(), q.y(), q.z(), q.w());
             }
         }
         f.close();
@@ -1785,5 +1796,7 @@ namespace ORB_SLAM3
         bool stopped = false;
         Optimizer::GlobalBundleAdjustemnt(mpAtlas->GetCurrentMap(), 50, &stopped, 0, true);
     }
+
+    System::~System() = default;
 
 } // namespace ORB_SLAM3

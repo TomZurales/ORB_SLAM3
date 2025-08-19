@@ -8,7 +8,7 @@
 #include "existence_probability_estimator.h"
 #include "observability_model.h"
 #include "observation.h"
-#include "DatabaseManager.h"
+#include "VBEE/seen_status.h"
 
 typedef struct {
     std::string model;
@@ -17,12 +17,6 @@ typedef struct {
     float init_observability;
     float observability_damping_coeff;
 } VBEEParams;
-
-typedef enum {
-    SEEN = 0,
-    NOT_SEEN,
-    ELSEWHERE
-} SeenStatus;
 
 class VBEE {
     friend class boost::serialization::access;

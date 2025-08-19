@@ -1,14 +1,19 @@
 #include "DatabaseManager.h"
+
 #include <mutex>
+#include <fstream>
 
 std::unique_ptr<DatabaseManager> DatabaseManager::_instance = nullptr;
 
-DatabaseManager& DatabaseManager::Instance() {
-    if (!_instance) throw std::runtime_error("DatabaseManager not initialized. Call DatabaseManager::Init(path) first.");
+DatabaseManager &DatabaseManager::Instance()
+{
+    if (!_instance)
+        throw std::runtime_error("DatabaseManager not initialized. Call DatabaseManager::Init(path) first.");
     return *_instance;
 }
 
-void DatabaseManager::Init(const std::string& test_name) {
+void DatabaseManager::Init(const std::string &test_name)
+{
     static std::mutex mtx;
     std::lock_guard<std::mutex> lock(mtx);
     if (!_instance)
@@ -33,12 +38,18 @@ DatabaseManager::DatabaseManager(const std::string &test_name)
     if (_test_db->tableExists("Params"))
     {
         std::cout << "Loading pre-existing test: " << dbPath << std::endl;
+        _clearTestData();
     }
     else
     {
         _initTestDB();
         _interactivePopulateTestDB();
     }
+}
+
+void DatabaseManager::_clearTestData()
+{
+    _test_db->exec("DELETE FROM VBEE;DELETE FROM FramePoses;DELETE FROM KeyframePoses;");
 }
 
 void DatabaseManager::_interactivePopulateTestDB()
@@ -215,62 +226,17 @@ void DatabaseManager::_interactivePopulateTestDB()
 
 void DatabaseManager::_initTestDB()
 {
-    // Params Table
-    _test_db->exec(
-        "CREATE TABLE 'Params' ("
-        "'name'	TEXT NOT NULL,"
-        "'use_vbee'	INTEGER NOT NULL DEFAULT 1,"
-        "'k'	INTEGER NOT NULL DEFAULT 150,"
-        "'n'	INTEGER NOT NULL DEFAULT 15,"
-        "'a_th'	INTEGER NOT NULL DEFAULT 0.52,"
-        "'f_th'	REAL NOT NULL DEFAULT 0.1,"
-        "'init_p_e'	REAL NOT NULL DEFAULT 0.9,"
-        "'damp_coeff'	REAL NOT NULL DEFAULT 0.3,"
-        "'init_obs'	REAL NOT NULL DEFAULT 0.5,"
-        "'obs_damp_coeff'	REAL NOT NULL DEFAULT 0.4"
-        ");");
-
-    _test_db->exec(
-        "CREATE TABLE 'Trajectories' ("
-        "'Order'	INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "'Id'	    INTEGER NOT NULL"
-        ");");
-
-    _test_db->exec(
-        "CREATE TABLE 'VBEE' ("
-        "'mpID' INTEGER NOT NULL,"
-        "'timestamp' REAL NOT NULL,"
-        "'traj' INTEGER NOT NULL,"
-        "'p_e'	REAL NOT NULL,"
-        "'est'	REAL NOT NULL,"
-        "'obs'	REAL NOT NULL,"
-        "'seen'	INTEGER NOT NULL"
-        ");");
-
-    _test_db->exec(
-        "CREATE TABLE 'FramePoses' ("
-        "'timestamp' REAL NOT NULL,"
-        "'traj' INTEGER NOT NULL,"
-        "'x'	REAL NOT NULL,"
-        "'y'	REAL NOT NULL,"
-        "'z'	REAL NOT NULL,"
-        "'r_x'	REAL NOT NULL,"
-        "'r_y'	REAL NOT NULL,"
-        "'r_z'	REAL NOT NULL,"
-        "'r_w'	REAL NOT NULL"
-        ");");
-
-    _test_db->exec(
-        "CREATE TABLE 'KeyframePoses' ("
-        "'timestamp' REAL NOT NULL,"
-        "'x'	REAL NOT NULL,"
-        "'y'	REAL NOT NULL,"
-        "'z'	REAL NOT NULL,"
-        "'r_x'	REAL NOT NULL,"
-        "'r_y'	REAL NOT NULL,"
-        "'r_z'	REAL NOT NULL,"
-        "'r_w'	REAL NOT NULL"
-        ");");
+    std::ifstream schemaFile("./etc/test_db.schema");
+    if (!schemaFile.is_open())
+    {
+        throw std::runtime_error("Failed to open ./etc/test_db.schema");
+    }
+    std::string schemaSql((std::istreambuf_iterator<char>(schemaFile)), std::istreambuf_iterator<char>());
+    schemaFile.close();
+    if (!schemaSql.empty())
+    {
+        _test_db->exec(schemaSql);
+    }
 }
 
 std::vector<Trajectory> DatabaseManager::getAllTrajectories()
@@ -303,13 +269,47 @@ void DatabaseManager::addFramePose(double x, double y, double z, double r_x, dou
     query.exec();
 }
 
+void DatabaseManager::addKeyframePose(double kfTimestamp, double x, double y, double z, double r_x, double r_y, double r_z, double r_w)
+{
+    // Use a small epsilon to find the closest timestamp
+    const double epsilon = 1e-5;
+    SQLite::Statement stmt(*_test_db, "SELECT traj FROM FramePoses WHERE ABS(timestamp - ?) < ? ORDER BY ABS(timestamp - ?) ASC LIMIT 1;");
+    stmt.bind(1, kfTimestamp);
+    stmt.bind(2, epsilon);
+    stmt.bind(3, kfTimestamp);
+
+    double kfTraj = -1;
+    if (stmt.executeStep())
+    {
+        kfTraj = stmt.getColumn(0).getDouble();
+    }
+    else
+    {
+        std::cerr << "No matching FramePose found for timestamp " << kfTimestamp << std::endl;
+        return;
+    }
+
+    SQLite::Statement query(*_test_db, "INSERT INTO KeyframePoses (timestamp, traj, x, y, z, r_x, r_y, r_z, r_w) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
+    query.bind(1, kfTimestamp);
+    query.bind(2, kfTraj);
+    query.bind(3, x);
+    query.bind(4, y);
+    query.bind(5, z);
+    query.bind(6, r_x);
+    query.bind(7, r_y);
+    query.bind(8, r_z);
+    query.bind(9, r_w);
+    query.exec();
+}
+
 void DatabaseManager::writeVBEELines()
 {
-    if (vbeeLines.empty()) return;
+    if (vbeeLines.empty())
+        return;
 
     SQLite::Transaction transaction(*_test_db);
     SQLite::Statement query(*_test_db, "INSERT INTO VBEE (mpID, timestamp, traj, p_e, est, obs, seen) VALUES (?, ?, ?, ?, ?, ?, ?);");
-    for (const auto& line : vbeeLines)
+    for (const auto &line : vbeeLines)
     {
         query.bind(1, line.mpID);
         query.bind(2, timestamp);
@@ -339,10 +339,11 @@ void DatabaseManager::addTrajectoryToTest(const int &dataset_id)
 
 Trajectory DatabaseManager::getTrajectoryById(int id)
 {
-    Trajectory traj {.id = -1, .name = "", .path = ""};
+    Trajectory traj{.id = -1, .name = "", .path = ""};
     SQLite::Statement query(*_common_db, "SELECT Id, Name, Path FROM Trajectories WHERE Id = ?;");
     query.bind(1, id);
-    if (query.executeStep()) {
+    if (query.executeStep())
+    {
         traj.id = query.getColumn(0).getInt();
         traj.name = query.getColumn(1).getString();
         traj.path = query.getColumn(2).getString();
@@ -361,10 +362,12 @@ std::vector<int> DatabaseManager::getTrajectoryIDs() const
     return ids;
 }
 
-DBParams DatabaseManager::getParams() const {
+DBParams DatabaseManager::getParams() const
+{
     DBParams p{};
     SQLite::Statement query(*_test_db, "SELECT use_vbee, k, n, a_th, f_th, init_p_e, damp_coeff, init_obs, obs_damp_coeff FROM Params LIMIT 1;");
-    if(query.executeStep()) {
+    if (query.executeStep())
+    {
         p.use_vbee = query.getColumn(0).getInt() == 1;
         p.k = query.getColumn(1).getInt();
         p.n = query.getColumn(2).getInt();
@@ -374,9 +377,10 @@ DBParams DatabaseManager::getParams() const {
         p.damp_coeff = static_cast<float>(query.getColumn(6).getDouble());
         p.init_obs = static_cast<float>(query.getColumn(7).getDouble());
         p.obs_damp_coeff = static_cast<float>(query.getColumn(8).getDouble());
-    } else {
+    }
+    else
+    {
         throw std::runtime_error("No Params row found in test DB");
     }
     return p;
 }
-

@@ -1,5 +1,5 @@
-
 #include "VBEE/vbee.h"
+#include "DatabaseManager.h"
 
 VBEE::VBEE(VBEEParams params, ObservabilityModelParams obsParams, int mpID)
     : params(params), model(obsParams), epe(), p_e(params.init_p_e), observability(params.init_observability), mpID(mpID), in_use(true) {}

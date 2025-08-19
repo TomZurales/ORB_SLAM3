@@ -50,6 +50,7 @@
  ******************************************************************************/
 
 #include "MLPnPsolver.h"
+#include "VBEE/vbee.h"
 
 #include <Eigen/Sparse>
 
@@ -79,7 +80,7 @@ MLPnPsolver::MLPnPsolver(const Frame &F,
 
         mvP2D.push_back(kp.pt);
         mvSigma2.push_back(F.mvLevelSigma2[kp.octave]);
-        vbeeWeights.push_back(pMP->vbee.Query());
+        vbeeWeights.push_back(pMP->vbee->Query());
 
         // Bearing vector should be normalized
         cv::Point3f cv_br = mpCamera->unproject(kp.pt);

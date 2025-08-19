@@ -24,6 +24,8 @@
 #include "MapPoint.h"
 #include <mutex>
 #include <pangolin/pangolin.h>
+#include "VBEE/seen_status.h"
+#include "VBEE/vbee.h"
 
 namespace ORB_SLAM3
 {
@@ -190,12 +192,12 @@ namespace ORB_SLAM3
         glBegin(GL_POINTS);
         for (size_t i = 0, iend = vpMPs.size(); i < iend; i++)
         {
-            SeenStatus ss = vpMPs[i]->vbee.GetSeenStatus();
+            SeenStatus ss = vpMPs[i]->vbee->GetSeenStatus();
 
             if (vpMPs[i]->isBad())
                 continue;
 
-            auto color = getHeatMapColor(vpMPs[i]->vbee.Query());
+            auto color = getHeatMapColor(vpMPs[i]->vbee->Query());
             switch (ss)
             {
             case SeenStatus::SEEN:

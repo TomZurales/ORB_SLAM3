@@ -30,7 +30,7 @@
 #include "ORBmatcher.h"
 #include "Optimizer.h"
 #include "Pinhole.h"
-// #include "vbee.h"
+#include "VBEE/vbee.h"
 
 #include <iostream>
 
