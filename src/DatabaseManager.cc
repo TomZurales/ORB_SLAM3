@@ -1,29 +1,382 @@
 #include "DatabaseManager.h"
+#include <mutex>
 
-DatabaseManager::DatabaseManager(const std::string &dbPath)
-{
-    _db = std::make_unique<SQLite::Database>(dbPath, SQLite::OPEN_READWRITE);
+std::unique_ptr<DatabaseManager> DatabaseManager::_instance = nullptr;
+
+DatabaseManager& DatabaseManager::Instance() {
+    if (!_instance) throw std::runtime_error("DatabaseManager not initialized. Call DatabaseManager::Init(path) first.");
+    return *_instance;
 }
 
-void DatabaseManager::_initDB()
+void DatabaseManager::Init(const std::string& test_name) {
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+    if (!_instance)
+        _instance.reset(new DatabaseManager(test_name));
+}
+
+DatabaseManager::DatabaseManager(const std::string &test_name)
+{
+    try
+    {
+        _common_db = std::make_unique<SQLite::Database>("common.db", SQLite::OPEN_READWRITE);
+    }
+    catch (const SQLite::Exception &e)
+    {
+        std::cerr << "Error opening common database: " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    std::string dbPath = test_name + ".db";
+    _test_db = std::make_unique<SQLite::Database>(dbPath, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE);
+
+    if (_test_db->tableExists("Params"))
+    {
+        std::cout << "Loading pre-existing test: " << dbPath << std::endl;
+    }
+    else
+    {
+        _initTestDB();
+        _interactivePopulateTestDB();
+    }
+}
+
+void DatabaseManager::_interactivePopulateTestDB()
+{
+    std::cout << "Test Setup: " << std::endl;
+
+    std::vector<Trajectory> trajectories = getAllTrajectories();
+    std::vector<int> selected;
+
+    while (true)
+    {
+        // Print list with selection marks
+        for (const auto &t : trajectories)
+        {
+            std::cout << t.id << ": " << t.name;
+            if (std::find(selected.begin(), selected.end(), t.id) != selected.end())
+                std::cout << " X";
+            std::cout << std::endl;
+        }
+
+        std::cout << "Type dataset id to toggle selection, or 'done' to finish: ";
+        std::string line;
+        if (!std::getline(std::cin, line))
+            break; // EOF
+        if (line == "done")
+            break;
+
+        // try parse int
+        try
+        {
+            int id = std::stoi(line);
+            // check id exists
+            bool found = false;
+            for (const auto &t : trajectories)
+            {
+                if (t.id == id)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                std::cout << "No dataset with id " << id << std::endl;
+                continue;
+            }
+            auto it = std::find(selected.begin(), selected.end(), id);
+            if (it != selected.end())
+                selected.erase(it);
+            else
+                selected.push_back(id);
+        }
+        catch (...)
+        {
+            std::cout << "Invalid input" << std::endl;
+        }
+    }
+
+    for (const auto &id : selected)
+    {
+        addTrajectoryToTest(id);
+    }
+
+    // Prompt as to whether to use VBEE for this test. If not, end. Otherwise prompt for all the parameters in the Params table.
+    std::string line;
+    std::cout << "Use VBEE for this test? (y/n) [y]: ";
+    if (!std::getline(std::cin, line))
+        return;
+    bool use_vbee = true;
+    if (!line.empty() && (line == "n" || line == "N" || line == "no" || line == "NO"))
+    {
+        use_vbee = false;
+        std::cout << "VBEE disabled for this test. A Params row will still be added with defaults and use_vbee=0.\n";
+    }
+
+    // Defaults
+    const int def_k = 150;
+    const int def_n = 15;
+    const double def_a_th = 0.52;
+    const double def_f_th = 0.1;
+    const double def_init_p_e = 0.9;
+    const double def_damp_coeff = 0.3;
+    const double def_init_obs = 0.5;
+    const double def_obs_damp_coeff = 0.4;
+
+    std::string name;
+    std::cout << "Test name [vbee_test]: ";
+    if (!std::getline(std::cin, name))
+        return;
+    if (name.empty())
+        name = "vbee_test";
+
+    auto read_int = [&](const std::string &prompt, int def) -> int
+    {
+        std::cout << prompt << " [" << def << "]: ";
+        std::string s;
+        std::getline(std::cin, s);
+        if (s.empty())
+            return def;
+        try
+        {
+            return std::stoi(s);
+        }
+        catch (...)
+        {
+            std::cout << "Invalid int, using default.\n";
+            return def;
+        }
+    };
+    auto read_double = [&](const std::string &prompt, double def) -> double
+    {
+        std::cout << prompt << " [" << def << "]: ";
+        std::string s;
+        std::getline(std::cin, s);
+        if (s.empty())
+            return def;
+        try
+        {
+            return std::stod(s);
+        }
+        catch (...)
+        {
+            std::cout << "Invalid number, using default.\n";
+            return def;
+        }
+    };
+
+    int k = def_k;
+    int n = def_n;
+    double a_th = def_a_th;
+    double f_th = def_f_th;
+    double init_p_e = def_init_p_e;
+    double damp_coeff = def_damp_coeff;
+    double init_obs = def_init_obs;
+    double obs_damp_coeff = def_obs_damp_coeff;
+
+    if (use_vbee)
+    {
+        k = read_int("k", def_k);
+        n = read_int("n", def_n);
+        a_th = read_double("a_th", def_a_th);
+        f_th = read_double("f_th", def_f_th);
+        init_p_e = read_double("init_p_e", def_init_p_e);
+        damp_coeff = read_double("damp_coeff", def_damp_coeff);
+        init_obs = read_double("init_obs", def_init_obs);
+        obs_damp_coeff = read_double("obs_damp_coeff", def_obs_damp_coeff);
+    }
+    else
+    {
+        std::cout << "Using default parameter values." << std::endl;
+    }
+
+    try
+    {
+        SQLite::Statement insert(*_test_db, "INSERT INTO Params (name, use_vbee, k, n, a_th, f_th, init_p_e, damp_coeff, init_obs, obs_damp_coeff) VALUES (?,?,?,?,?,?,?,?,?,?);");
+        insert.bind(1, name);
+        insert.bind(2, use_vbee ? 1 : 0);
+        insert.bind(3, k);
+        insert.bind(4, n);
+        insert.bind(5, a_th);
+        insert.bind(6, f_th);
+        insert.bind(7, init_p_e);
+        insert.bind(8, damp_coeff);
+        insert.bind(9, init_obs);
+        insert.bind(10, obs_damp_coeff);
+        insert.exec();
+        std::cout << "Params saved to test DB.\n";
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Failed to insert Params: " << e.what() << std::endl;
+    }
+}
+
+void DatabaseManager::_initTestDB()
 {
     // Params Table
-    _db->exec(
+    _test_db->exec(
         "CREATE TABLE 'Params' ("
-        "'k' INTEGER NOT NULL,"
-        "'n' INTEGER NOT NULL,"
-        "'a_th' REAL NOT NULL,"
-        "'f_th' REAL NOT NULL,"
-        "'init_p_e' REAL NOT NULL,"
-        "'damp_coeff' REAL NOT NULL,"
-        "'init_obs' REAL NOT NULL,"
-        "'obs_damp_coeff' REAL NOT NULL"
+        "'name'	TEXT NOT NULL,"
+        "'use_vbee'	INTEGER NOT NULL DEFAULT 1,"
+        "'k'	INTEGER NOT NULL DEFAULT 150,"
+        "'n'	INTEGER NOT NULL DEFAULT 15,"
+        "'a_th'	INTEGER NOT NULL DEFAULT 0.52,"
+        "'f_th'	REAL NOT NULL DEFAULT 0.1,"
+        "'init_p_e'	REAL NOT NULL DEFAULT 0.9,"
+        "'damp_coeff'	REAL NOT NULL DEFAULT 0.3,"
+        "'init_obs'	REAL NOT NULL DEFAULT 0.5,"
+        "'obs_damp_coeff'	REAL NOT NULL DEFAULT 0.4"
         ");");
 
-    _db->exec(
+    _test_db->exec(
         "CREATE TABLE 'Trajectories' ("
-        "'Id'	INTEGER NOT NULL UNIQUE,"
-        "'Path'	TEXT NOT NULL,"
-        "PRIMARY KEY('Id' AUTOINCREMENT)"
+        "'Order'	INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "'Id'	    INTEGER NOT NULL"
+        ");");
+
+    _test_db->exec(
+        "CREATE TABLE 'VBEE' ("
+        "'mpID' INTEGER NOT NULL,"
+        "'timestamp' REAL NOT NULL,"
+        "'traj' INTEGER NOT NULL,"
+        "'p_e'	REAL NOT NULL,"
+        "'est'	REAL NOT NULL,"
+        "'obs'	REAL NOT NULL,"
+        "'seen'	INTEGER NOT NULL"
+        ");");
+
+    _test_db->exec(
+        "CREATE TABLE 'FramePoses' ("
+        "'timestamp' REAL NOT NULL,"
+        "'traj' INTEGER NOT NULL,"
+        "'x'	REAL NOT NULL,"
+        "'y'	REAL NOT NULL,"
+        "'z'	REAL NOT NULL,"
+        "'r_x'	REAL NOT NULL,"
+        "'r_y'	REAL NOT NULL,"
+        "'r_z'	REAL NOT NULL,"
+        "'r_w'	REAL NOT NULL"
+        ");");
+
+    _test_db->exec(
+        "CREATE TABLE 'KeyframePoses' ("
+        "'timestamp' REAL NOT NULL,"
+        "'x'	REAL NOT NULL,"
+        "'y'	REAL NOT NULL,"
+        "'z'	REAL NOT NULL,"
+        "'r_x'	REAL NOT NULL,"
+        "'r_y'	REAL NOT NULL,"
+        "'r_z'	REAL NOT NULL,"
+        "'r_w'	REAL NOT NULL"
         ");");
 }
+
+std::vector<Trajectory> DatabaseManager::getAllTrajectories()
+{
+    std::vector<Trajectory> datasets;
+    SQLite::Statement query(*_common_db, "SELECT * FROM Trajectories ORDER BY Id ASC;");
+    while (query.executeStep())
+    {
+        Trajectory dataset;
+        dataset.id = query.getColumn(0).getInt();
+        dataset.name = query.getColumn(1).getString();
+        dataset.path = query.getColumn(2).getString();
+        datasets.push_back(dataset);
+    }
+    return datasets;
+}
+
+void DatabaseManager::addFramePose(double x, double y, double z, double r_x, double r_y, double r_z, double r_w)
+{
+    SQLite::Statement query(*_test_db, "INSERT INTO FramePoses (timestamp, traj, x, y, z, r_x, r_y, r_z, r_w) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
+    query.bind(1, timestamp);
+    query.bind(2, traj);
+    query.bind(3, x);
+    query.bind(4, y);
+    query.bind(5, z);
+    query.bind(6, r_x);
+    query.bind(7, r_y);
+    query.bind(8, r_z);
+    query.bind(9, r_w);
+    query.exec();
+}
+
+void DatabaseManager::writeVBEELines()
+{
+    if (vbeeLines.empty()) return;
+
+    SQLite::Transaction transaction(*_test_db);
+    SQLite::Statement query(*_test_db, "INSERT INTO VBEE (mpID, timestamp, traj, p_e, est, obs, seen) VALUES (?, ?, ?, ?, ?, ?, ?);");
+    for (const auto& line : vbeeLines)
+    {
+        query.bind(1, line.mpID);
+        query.bind(2, timestamp);
+        query.bind(3, traj);
+        query.bind(4, line.p_e);
+        query.bind(5, line.est);
+        query.bind(6, line.obs);
+        query.bind(7, line.seen ? 1 : 0);
+        query.exec();
+        query.reset();
+    }
+    transaction.commit();
+    vbeeLines.clear();
+}
+
+void DatabaseManager::addVBEELine(int mpID, float p_e, float model_est, float observability, bool seen)
+{
+    vbeeLines.push_back({mpID, p_e, model_est, observability, seen});
+}
+
+void DatabaseManager::addTrajectoryToTest(const int &dataset_id)
+{
+    SQLite::Statement query(*_test_db, "INSERT INTO Trajectories (Id) VALUES (?);");
+    query.bind(1, dataset_id);
+    query.exec();
+}
+
+Trajectory DatabaseManager::getTrajectoryById(int id)
+{
+    Trajectory traj {.id = -1, .name = "", .path = ""};
+    SQLite::Statement query(*_common_db, "SELECT Id, Name, Path FROM Trajectories WHERE Id = ?;");
+    query.bind(1, id);
+    if (query.executeStep()) {
+        traj.id = query.getColumn(0).getInt();
+        traj.name = query.getColumn(1).getString();
+        traj.path = query.getColumn(2).getString();
+    }
+    return traj;
+}
+
+std::vector<int> DatabaseManager::getTrajectoryIDs() const
+{
+    std::vector<int> ids;
+    SQLite::Statement query(*_test_db, "SELECT Id FROM Trajectories ORDER BY [Order] ASC;");
+    while (query.executeStep())
+    {
+        ids.push_back(query.getColumn(0).getInt());
+    }
+    return ids;
+}
+
+DBParams DatabaseManager::getParams() const {
+    DBParams p{};
+    SQLite::Statement query(*_test_db, "SELECT use_vbee, k, n, a_th, f_th, init_p_e, damp_coeff, init_obs, obs_damp_coeff FROM Params LIMIT 1;");
+    if(query.executeStep()) {
+        p.use_vbee = query.getColumn(0).getInt() == 1;
+        p.k = query.getColumn(1).getInt();
+        p.n = query.getColumn(2).getInt();
+        p.a_th = static_cast<float>(query.getColumn(3).getDouble());
+        p.f_th = static_cast<float>(query.getColumn(4).getDouble());
+        p.init_p_e = static_cast<float>(query.getColumn(5).getDouble());
+        p.damp_coeff = static_cast<float>(query.getColumn(6).getDouble());
+        p.init_obs = static_cast<float>(query.getColumn(7).getDouble());
+        p.obs_damp_coeff = static_cast<float>(query.getColumn(8).getDouble());
+    } else {
+        throw std::runtime_error("No Params row found in test DB");
+    }
+    return p;
+}
+

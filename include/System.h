@@ -287,6 +287,7 @@ namespace ORB_SLAM3
 
     int vbee_loop_count = 1;
     std::map<MapPoint *, Observation> bestObservations;
+
   };
 
 } // namespace ORB_SLAM3

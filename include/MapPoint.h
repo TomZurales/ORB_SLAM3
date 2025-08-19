@@ -267,6 +267,7 @@ namespace ORB_SLAM3
     std::mutex mMutexPos;
     std::mutex mMutexFeatures;
     std::mutex mMutexMap;
+
   };
 
 } // namespace ORB_SLAM3

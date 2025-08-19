@@ -38,13 +38,7 @@ namespace ORB_SLAM3
         mpReplaced(static_cast<MapPoint *>(NULL))
   {
     mpReplaced = static_cast<MapPoint *>(NULL);
-
-    // #ifdef TCZ_THESIS
-    probExists = 1;
-    // #endif
-    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.1};
-    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
-    vbee = VBEE(vbeeParams, modelParams);
+    vbee = VBEE(mnId);
   }
 
   MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map *pMap)
@@ -67,12 +61,7 @@ namespace ORB_SLAM3
     // conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
-    // #ifdef TCZ_THESIS
-    probExists = 1;
-    // #endif
-    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.2};
-    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
-    vbee = VBEE(vbeeParams, modelParams);
+    vbee = VBEE(mnId);
   }
 
   MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame *pRefKF,
@@ -97,12 +86,7 @@ namespace ORB_SLAM3
     // conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
-    // #ifdef TCZ_THESIS
-    probExists = 1;
-    // #endif
-    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.2};
-    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
-    vbee = VBEE(vbeeParams, modelParams);
+    vbee = VBEE(mnId);
   }
 
   MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
@@ -150,12 +134,7 @@ namespace ORB_SLAM3
     // conflicts with id.
     unique_lock<mutex> lock(mpMap->mMutexPointCreation);
     mnId = nNextId++;
-    // #ifdef TCZ_THESIS
-    probExists = 1;
-    // #endif
-    VBEEParams vbeeParams = {.model = "KNN", .init_p_e = 0.9f, .damping_coeff = 0.75, .observability_damping_coeff = 0.2};
-    ObservabilityModelParams modelParams = {.k = 10, .n = 150, .angle_threshold = M_PI_2 / 3, .feedback_threshold = 0.1};
-    vbee = VBEE(vbeeParams, modelParams);
+    vbee = VBEE(mnId);
   }
 
   void MapPoint::SetWorldPos(const Eigen::Vector3f &Pos)

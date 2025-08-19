@@ -18,54 +18,44 @@ void LoadImages(const string &strPathLeft, const string &strPathRight,
 
 int main(int argc, char **argv)
 {
-    if(argc != 2)
+    if (argc != 2)
     {
         std::cout << "Usage: stereo_vbee <test name>" << std::endl;
         return 1;
     }
 
     std::string test_name(argv[1]);
-    std::shared_ptr<DatabaseManager> dbManager = std::make_shared<DatabaseManager>(test_name + ".db");
+    DatabaseManager::Init(test_name);
 
-    std::cout << "Number of trajectories in the database: " << dbManager->getNumTrajectories() << std::endl;
-    return 0;
+    std::vector<int> traj_ids = DatabaseManager::Instance().getTrajectoryIDs();
 
-    const int num_seq = (argc - 3) / 2;
-    cout << "num_seq = " << num_seq << endl;
-    bool bFileName = (((argc - 3) % 2) == 1);
-    string file_name;
-    if (bFileName)
+    if (traj_ids.empty())
     {
-        file_name = string(argv[argc - 1]);
-        cout << "file name: " << file_name << endl;
+        std::cout << "No trajectories found in the database." << std::endl;
+        return EXIT_FAILURE;
     }
 
-    // Load all sequences:
-    int seq;
-    vector<vector<string>> vstrImageLeft;
-    vector<vector<string>> vstrImageRight;
-    vector<vector<double>> vTimestampsCam;
-    vector<int> nImages;
+    int num_seq = traj_ids.size();
+    std::cout << "num_seq = " << num_seq << std::endl;
 
-    vstrImageLeft.resize(num_seq);
-    vstrImageRight.resize(num_seq);
-    vTimestampsCam.resize(num_seq);
-    nImages.resize(num_seq);
+    vector<vector<string>> vstrImageLeft(num_seq);
+    vector<vector<string>> vstrImageRight(num_seq);
+    vector<vector<double>> vTimestampsCam(num_seq);
+    vector<int> nImages(num_seq);
 
     int tot_images = 0;
-    for (seq = 0; seq < num_seq; seq++)
+    for (int seq = 0; seq < num_seq; ++seq)
     {
-        cout << "Loading images for sequence " << seq << "...";
-
-        string pathSeq(argv[(2 * seq) + 3]);
-        string pathTimeStamps(argv[(2 * seq) + 4]);
-
-        string pathCam0 = pathSeq + "/mav0/cam0/data";
-        string pathCam1 = pathSeq + "/mav0/cam1/data";
+        std::cout << "Loading images for sequence " << seq << "...";
+        Trajectory traj = DatabaseManager::Instance().getTrajectoryById(traj_ids[seq]);
+        std::string dataset_root = traj.path;
+        std::string pathTimeStamps = dataset_root + "/timestamps.txt";
+        std::string pathCam0 = dataset_root + "/mav0/cam0/data";
+        std::string pathCam1 = dataset_root + "/mav0/cam1/data";
 
         LoadImages(pathCam0, pathCam1, pathTimeStamps, vstrImageLeft[seq],
                    vstrImageRight[seq], vTimestampsCam[seq]);
-        cout << "LOADED!" << endl;
+        std::cout << "LOADED!" << std::endl;
 
         nImages[seq] = vstrImageLeft[seq].size();
         tot_images += nImages[seq];
@@ -81,14 +71,14 @@ int main(int argc, char **argv)
 
     // Create SLAM system. It initializes all system threads and gets ready to
     // process frames.
-    ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::STEREO, true);
+    ORB_SLAM3::System SLAM("etc/ORBvoc.txt", "etc/VBEE.yaml", ORB_SLAM3::System::STEREO, true);
 
     //   SLAM.ActivateLocalizationMode();
     bool newTrajectory = false;
     cv::Mat imLeft, imRight;
     double tframe = 0.0;
     double CONSTANT_TFRAME = 1.0 / 15.0;
-    for (seq = 0; seq < num_seq; seq++)
+    for (int seq = 0; seq < num_seq; seq++)
     {
         // Seq loop
         double t_resize = 0;
@@ -98,6 +88,7 @@ int main(int argc, char **argv)
         int proccIm = 0;
         for (int ni = 0; ni < nImages[seq]; ni++, proccIm++)
         {
+            DatabaseManager::Instance().setTimestamp(tframe);
             // Read left and right images from file
             imLeft = cv::imread(vstrImageLeft[seq][ni],
                                 cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
@@ -126,15 +117,36 @@ int main(int argc, char **argv)
             {
                 bool result = SLAM.RelocalizeFrame(imLeft, imRight, tframe, vector<ORB_SLAM3::IMU::Point>(), vstrImageLeft[seq][ni]);
 
-                if(result)
+                if (result)
                 {
                     std::cout << "Successful Trajectory Swap" << std::endl;
                     newTrajectory = false;
+                    DatabaseManager::Instance().nextTrajectory();
+                    auto pose = SLAM.TrackStereo(imLeft, imRight, tframe, vector<ORB_SLAM3::IMU::Point>(),
+                                                 vstrImageLeft[seq][ni]);
+
+                    DatabaseManager::Instance().addFramePose(pose.translation().x(),
+                                                             pose.translation().y(),
+                                                             pose.translation().z(),
+                                                             pose.unit_quaternion().x(),
+                                                             pose.unit_quaternion().y(),
+                                                             pose.unit_quaternion().z(),
+                                                             pose.unit_quaternion().w());
                 }
-            } else {
+            }
+            else
+            {
                 // Pass the images to the SLAM system
-                SLAM.TrackStereo(imLeft, imRight, tframe, vector<ORB_SLAM3::IMU::Point>(),
-                                vstrImageLeft[seq][ni]);
+                auto pose = SLAM.TrackStereo(imLeft, imRight, tframe, vector<ORB_SLAM3::IMU::Point>(),
+                                             vstrImageLeft[seq][ni]);
+
+                DatabaseManager::Instance().addFramePose(pose.translation().x(),
+                                                         pose.translation().y(),
+                                                         pose.translation().z(),
+                                                         pose.unit_quaternion().x(),
+                                                         pose.unit_quaternion().y(),
+                                                         pose.unit_quaternion().z(),
+                                                         pose.unit_quaternion().w());
             }
             std::chrono::steady_clock::time_point t2 =
                 std::chrono::steady_clock::now();
@@ -150,7 +162,7 @@ int main(int argc, char **argv)
 
             if (ttrack < T)
                 usleep((T - ttrack) * 1e6); // 1e6
-            
+
             tframe += CONSTANT_TFRAME;
         }
 
@@ -168,19 +180,19 @@ int main(int argc, char **argv)
     // Stop all threads
     SLAM.Shutdown();
 
-    // Save camera trajectory
-    if (bFileName)
-    {
-        const string kf_file = "kf_" + string(argv[argc - 1]) + ".txt";
-        const string f_file = "f_" + string(argv[argc - 1]) + ".txt";
-        SLAM.SaveTrajectoryEuRoC(f_file);
-        SLAM.SaveKeyFrameTrajectoryEuRoC(kf_file);
-    }
-    else
-    {
-        SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
-        SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
-    }
+    // // Save camera trajectory
+    // if (bFileName)
+    // {
+    //     const string kf_file = "kf_" + string(argv[argc - 1]) + ".txt";
+    //     const string f_file = "f_" + string(argv[argc - 1]) + ".txt";
+    //     SLAM.SaveTrajectoryEuRoC(f_file);
+    //     SLAM.SaveKeyFrameTrajectoryEuRoC(kf_file);
+    // }
+    // else
+    // {
+    //     SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
+    //     SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
+    // }
 
     return 0;
 }

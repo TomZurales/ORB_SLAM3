@@ -3,10 +3,12 @@
 #include <vector>
 #include <string>
 #include <boost/serialization/serialization.hpp>
+#include <algorithm>
 
 #include "existence_probability_estimator.h"
 #include "observability_model.h"
 #include "observation.h"
+#include "DatabaseManager.h"
 
 typedef struct {
     std::string model;
@@ -32,7 +34,8 @@ class VBEE {
     }
 public:
     VBEE() = default;
-    VBEE(VBEEParams, ObservabilityModelParams);
+    VBEE(int);
+    VBEE(VBEEParams, ObservabilityModelParams, int);
     ~VBEE() = default;  
 
     float Update(Observation);
@@ -64,6 +67,8 @@ private:
     float p_e;
     float observability;
 
+    int mpID = -1;
+
     void set_pe(float pe) {
         p_e = std::min(0.999f, std::max(0.001f, pe));
     }
@@ -71,4 +76,7 @@ private:
     void set_observability(float obs) {
         observability = std::min(0.75f, std::max(0.25f, obs));
     }
+
+    bool in_use = true;
+
 };

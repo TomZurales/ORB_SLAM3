@@ -29,7 +29,6 @@
 
 #include <System.h>
 #include "Optimizer.h"
-#include "DatabaseManager.h"
 
 using namespace std;
 
@@ -39,7 +38,6 @@ void LoadImages(const string &strPathLeft, const string &strPathRight,
 
 int main(int argc, char **argv)
 {
-    DatabaseManager dbManager("orbslam3.db");
     if (argc < 5)
     {
         cerr
