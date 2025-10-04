@@ -14,17 +14,17 @@ DatabaseManager &DatabaseManager::Instance()
 
 void DatabaseManager::Init(const std::string &test_name)
 {
-    static std::mutex mtx;
-    std::lock_guard<std::mutex> lock(mtx);
     if (!_instance)
         _instance.reset(new DatabaseManager(test_name));
 }
 
 DatabaseManager::DatabaseManager(const std::string &test_name)
 {
+
     try
     {
         _common_db = std::make_unique<SQLite::Database>("common.db", SQLite::OPEN_READWRITE);
+        _common_db->exec("PRAGMA busy_timeout = 5000;");
     }
     catch (const SQLite::Exception &e)
     {
@@ -34,6 +34,7 @@ DatabaseManager::DatabaseManager(const std::string &test_name)
 
     std::string dbPath = test_name + ".db";
     _test_db = std::make_unique<SQLite::Database>(dbPath, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE);
+    _test_db->exec("PRAGMA busy_timeout = 5000;");
 
     if (_test_db->tableExists("Params"))
     {
@@ -45,11 +46,60 @@ DatabaseManager::DatabaseManager(const std::string &test_name)
         _initTestDB();
         _interactivePopulateTestDB();
     }
+
+    stop_worker = false;
+    worker_thread = std::thread(&DatabaseManager::workerLoop, this);
+}
+DatabaseManager::~DatabaseManager()
+{
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        stop_worker = true;
+    }
+    queue_cv.notify_one();
+    if (worker_thread.joinable())
+        worker_thread.join();
+}
+void DatabaseManager::enqueue(Task task)
+{
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        task_queue.push(std::move(task));
+    }
+    queue_cv.notify_one();
+}
+
+bool DatabaseManager::workerIsDone() const
+{
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    return task_queue.empty();
+}
+
+void DatabaseManager::workerLoop()
+{
+    while (true)
+    {
+        Task task;
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            queue_cv.wait(lock, [this]
+                          { return stop_worker || !task_queue.empty(); });
+            if (stop_worker && task_queue.empty())
+                break;
+            task = std::move(task_queue.front());
+            task_queue.pop();
+        }
+        if (task)
+        {
+            std::lock_guard<std::mutex> dblock(db_access_mutex);
+            task();
+        }
+    }
 }
 
 void DatabaseManager::_clearTestData()
 {
-    _test_db->exec("DELETE FROM VBEE;DELETE FROM FramePoses;DELETE FROM KeyframePoses;");
+    _test_db->exec("DELETE FROM VBEE;DELETE FROM FramePoses;DELETE FROM KeyframePoses;DELETE FROM RANSACStats");
 }
 
 void DatabaseManager::_interactivePopulateTestDB()
@@ -123,6 +173,17 @@ void DatabaseManager::_interactivePopulateTestDB()
     {
         use_vbee = false;
         std::cout << "VBEE disabled for this test. A Params row will still be added with defaults and use_vbee=0.\n";
+    }
+
+    std::string line2;
+    std::cout << "Weight RANSAC for this test? (y/n) [y]: ";
+    if (!std::getline(std::cin, line))
+        return;
+    bool weight_ransac = true;
+    if (!line2.empty() && (line2 == "n" || line2 == "N" || line2 == "no" || line2 == "NO"))
+    {
+        weight_ransac = false;
+        std::cout << "RANSAC weighting disabled for this test.\n";
     }
 
     // Defaults
@@ -204,17 +265,18 @@ void DatabaseManager::_interactivePopulateTestDB()
 
     try
     {
-        SQLite::Statement insert(*_test_db, "INSERT INTO Params (name, use_vbee, k, n, a_th, f_th, init_p_e, damp_coeff, init_obs, obs_damp_coeff) VALUES (?,?,?,?,?,?,?,?,?,?);");
+        SQLite::Statement insert(*_test_db, "INSERT INTO Params (name, use_vbee, weight_ransac, k, n, a_th, f_th, init_p_e, damp_coeff, init_obs, obs_damp_coeff) VALUES (?,?,?,?,?,?,?,?,?,?,?);");
         insert.bind(1, name);
         insert.bind(2, use_vbee ? 1 : 0);
-        insert.bind(3, k);
-        insert.bind(4, n);
-        insert.bind(5, a_th);
-        insert.bind(6, f_th);
-        insert.bind(7, init_p_e);
-        insert.bind(8, damp_coeff);
-        insert.bind(9, init_obs);
-        insert.bind(10, obs_damp_coeff);
+        insert.bind(3, weight_ransac ? 1 : 0);
+        insert.bind(4, k);
+        insert.bind(5, n);
+        insert.bind(6, a_th);
+        insert.bind(7, f_th);
+        insert.bind(8, init_p_e);
+        insert.bind(9, damp_coeff);
+        insert.bind(10, init_obs);
+        insert.bind(11, obs_damp_coeff);
         insert.exec();
         std::cout << "Params saved to test DB.\n";
     }
@@ -254,91 +316,136 @@ std::vector<Trajectory> DatabaseManager::getAllTrajectories()
     return datasets;
 }
 
+void DatabaseManager::addTrackTime(double time)
+{
+    enqueue([this, time]()
+            {
+        SQLite::Statement query(*_test_db, "INSERT INTO TrackTimes (time, traj) VALUES (?, ?);");
+        query.bind(1, time);
+        query.bind(2, traj);
+        query.exec(); });
+}
+
+void DatabaseManager::addRelocTime(double time)
+{
+    enqueue([this, time]()
+            {
+        SQLite::Statement query(*_test_db, "INSERT INTO RelocTimes (time, traj) VALUES (?, ?);");
+        query.bind(1, time);
+        query.bind(2, traj);
+        query.exec(); });
+}
+
 void DatabaseManager::addFramePose(double x, double y, double z, double r_x, double r_y, double r_z, double r_w)
 {
-    SQLite::Statement query(*_test_db, "INSERT INTO FramePoses (timestamp, traj, x, y, z, r_x, r_y, r_z, r_w) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
-    query.bind(1, timestamp);
-    query.bind(2, traj);
-    query.bind(3, x);
-    query.bind(4, y);
-    query.bind(5, z);
-    query.bind(6, r_x);
-    query.bind(7, r_y);
-    query.bind(8, r_z);
-    query.bind(9, r_w);
-    query.exec();
+    enqueue([=, this]()
+            {
+        SQLite::Statement query(*_test_db, "INSERT INTO FramePoses (timestamp, traj, x, y, z, r_x, r_y, r_z, r_w) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
+        query.bind(1, timestamp);
+        query.bind(2, traj);
+        query.bind(3, x);
+        query.bind(4, y);
+        query.bind(5, z);
+        query.bind(6, r_x);
+        query.bind(7, r_y);
+        query.bind(8, r_z);
+        query.bind(9, r_w);
+        query.exec(); });
 }
 
 void DatabaseManager::addKeyframePose(double kfTimestamp, double x, double y, double z, double r_x, double r_y, double r_z, double r_w)
 {
-    // Use a small epsilon to find the closest timestamp
-    const double epsilon = 1e-5;
-    SQLite::Statement stmt(*_test_db, "SELECT traj FROM FramePoses WHERE ABS(timestamp - ?) < ? ORDER BY ABS(timestamp - ?) ASC LIMIT 1;");
-    stmt.bind(1, kfTimestamp);
-    stmt.bind(2, epsilon);
-    stmt.bind(3, kfTimestamp);
+    enqueue([=, this]()
+            {
+        // Use a small epsilon to find the closest timestamp
+        const double epsilon = 1e-5;
+        SQLite::Statement stmt(*_test_db, "SELECT traj FROM FramePoses WHERE ABS(timestamp - ?) < ? ORDER BY ABS(timestamp - ?) ASC LIMIT 1;");
+        stmt.bind(1, kfTimestamp);
+        stmt.bind(2, epsilon);
+        stmt.bind(3, kfTimestamp);
 
-    double kfTraj = -1;
-    if (stmt.executeStep())
-    {
-        kfTraj = stmt.getColumn(0).getDouble();
-    }
-    else
-    {
-        std::cerr << "No matching FramePose found for timestamp " << kfTimestamp << std::endl;
-        return;
-    }
+        double kfTraj = -1;
+        if (stmt.executeStep())
+        {
+            kfTraj = stmt.getColumn(0).getDouble();
+        }
+        else
+        {
+            std::cerr << "No matching FramePose found for timestamp " << kfTimestamp << std::endl;
+            return;
+        }
 
-    SQLite::Statement query(*_test_db, "INSERT INTO KeyframePoses (timestamp, traj, x, y, z, r_x, r_y, r_z, r_w) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
-    query.bind(1, kfTimestamp);
-    query.bind(2, kfTraj);
-    query.bind(3, x);
-    query.bind(4, y);
-    query.bind(5, z);
-    query.bind(6, r_x);
-    query.bind(7, r_y);
-    query.bind(8, r_z);
-    query.bind(9, r_w);
-    query.exec();
+        SQLite::Statement query(*_test_db, "INSERT INTO KeyframePoses (timestamp, traj, x, y, z, r_x, r_y, r_z, r_w) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
+        query.bind(1, kfTimestamp);
+        query.bind(2, kfTraj);
+        query.bind(3, x);
+        query.bind(4, y);
+        query.bind(5, z);
+        query.bind(6, r_x);
+        query.bind(7, r_y);
+        query.bind(8, r_z);
+        query.bind(9, r_w);
+        query.exec(); });
 }
 
 void DatabaseManager::writeVBEELines()
 {
-    if (vbeeLines.empty())
-        return;
+    enqueue([this]()
+            {
+        if (vbeeLines.empty())
+            return;
 
-    SQLite::Transaction transaction(*_test_db);
-    SQLite::Statement query(*_test_db, "INSERT INTO VBEE (mpID, timestamp, traj, p_e, est, obs, seen) VALUES (?, ?, ?, ?, ?, ?, ?);");
-    for (const auto &line : vbeeLines)
-    {
-        query.bind(1, line.mpID);
-        query.bind(2, timestamp);
-        query.bind(3, traj);
-        query.bind(4, line.p_e);
-        query.bind(5, line.est);
-        query.bind(6, line.obs);
-        query.bind(7, line.seen ? 1 : 0);
-        query.exec();
-        query.reset();
-    }
-    transaction.commit();
-    vbeeLines.clear();
+        SQLite::Transaction transaction(*_test_db);
+        SQLite::Statement query(*_test_db, "INSERT INTO VBEE (mpID, timestamp, traj, p_e, est, obs, seen) VALUES (?, ?, ?, ?, ?, ?, ?);");
+        for (const auto &line : vbeeLines)
+        {
+            query.bind(1, line.mpID);
+            query.bind(2, timestamp);
+            query.bind(3, traj);
+            query.bind(4, line.p_e);
+            query.bind(5, line.est);
+            query.bind(6, line.obs);
+            query.bind(7, line.seen ? 1 : 0);
+            query.exec();
+            query.reset();
+        }
+        transaction.commit();
+        vbeeLines.clear(); });
 }
 
 void DatabaseManager::addVBEELine(int mpID, float p_e, float model_est, float observability, bool seen)
 {
-    vbeeLines.push_back({mpID, p_e, model_est, observability, seen});
+    enqueue([=, this]()
+            { vbeeLines.push_back({mpID, p_e, model_est, observability, seen}); });
 }
 
 void DatabaseManager::addTrajectoryToTest(const int &dataset_id)
 {
-    SQLite::Statement query(*_test_db, "INSERT INTO Trajectories (Id) VALUES (?);");
-    query.bind(1, dataset_id);
-    query.exec();
+    enqueue([=, this]()
+            {
+        SQLite::Statement query(*_test_db, "INSERT INTO Trajectories (Id) VALUES (?);");
+        query.bind(1, dataset_id);
+        query.exec(); });
+}
+
+void DatabaseManager::addRANSACStats(const std::string &type, int iterations, int inliers, double time, bool success, bool refined)
+{
+    enqueue([=, this]()
+            {
+        SQLite::Statement query(*_test_db, "INSERT INTO RANSACStats (timestamp, type, iterations, inliers, time, success, refined) VALUES (?, ?, ?, ?, ?, ?, ?);");
+        query.bind(1, timestamp);
+        query.bind(2, type);
+        query.bind(3, iterations);
+        query.bind(4, inliers);
+        query.bind(5, time);
+        query.bind(6, success ? 1 : 0);
+        query.bind(7, refined ? 1 : 0);
+        query.exec(); });
 }
 
 Trajectory DatabaseManager::getTrajectoryById(int id)
 {
+    std::lock_guard<std::mutex> dblock(db_access_mutex);
     Trajectory traj{.id = -1, .name = "", .path = ""};
     SQLite::Statement query(*_common_db, "SELECT Id, Name, Path FROM Trajectories WHERE Id = ?;");
     query.bind(1, id);
@@ -353,6 +460,7 @@ Trajectory DatabaseManager::getTrajectoryById(int id)
 
 std::vector<int> DatabaseManager::getTrajectoryIDs() const
 {
+    std::lock_guard<std::mutex> dblock(db_access_mutex);
     std::vector<int> ids;
     SQLite::Statement query(*_test_db, "SELECT Id FROM Trajectories ORDER BY [Order] ASC;");
     while (query.executeStep())
@@ -364,19 +472,21 @@ std::vector<int> DatabaseManager::getTrajectoryIDs() const
 
 DBParams DatabaseManager::getParams() const
 {
+    std::lock_guard<std::mutex> dblock(db_access_mutex);
     DBParams p{};
-    SQLite::Statement query(*_test_db, "SELECT use_vbee, k, n, a_th, f_th, init_p_e, damp_coeff, init_obs, obs_damp_coeff FROM Params LIMIT 1;");
+    SQLite::Statement query(*_test_db, "SELECT use_vbee, weight_ransac, k, n, a_th, f_th, init_p_e, damp_coeff, init_obs, obs_damp_coeff FROM Params LIMIT 1;");
     if (query.executeStep())
     {
         p.use_vbee = query.getColumn(0).getInt() == 1;
-        p.k = query.getColumn(1).getInt();
-        p.n = query.getColumn(2).getInt();
-        p.a_th = static_cast<float>(query.getColumn(3).getDouble());
-        p.f_th = static_cast<float>(query.getColumn(4).getDouble());
-        p.init_p_e = static_cast<float>(query.getColumn(5).getDouble());
-        p.damp_coeff = static_cast<float>(query.getColumn(6).getDouble());
-        p.init_obs = static_cast<float>(query.getColumn(7).getDouble());
-        p.obs_damp_coeff = static_cast<float>(query.getColumn(8).getDouble());
+        p.weight_ransac = query.getColumn(1).getInt() == 1;
+        p.k = query.getColumn(2).getInt();
+        p.n = query.getColumn(3).getInt();
+        p.a_th = static_cast<float>(query.getColumn(4).getDouble());
+        p.f_th = static_cast<float>(query.getColumn(5).getDouble());
+        p.init_p_e = static_cast<float>(query.getColumn(6).getDouble());
+        p.damp_coeff = static_cast<float>(query.getColumn(7).getDouble());
+        p.init_obs = static_cast<float>(query.getColumn(8).getDouble());
+        p.obs_damp_coeff = static_cast<float>(query.getColumn(9).getDouble());
     }
     else
     {

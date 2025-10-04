@@ -28,6 +28,11 @@ int main(int argc, char **argv)
     DatabaseManager::Init(test_name);
 
     std::vector<int> traj_ids = DatabaseManager::Instance().getTrajectoryIDs();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    while (!DatabaseManager::Instance().workerIsDone())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
     if (traj_ids.empty())
     {
@@ -78,6 +83,7 @@ int main(int argc, char **argv)
     cv::Mat imLeft, imRight;
     double tframe = 0.0;
     double CONSTANT_TFRAME = 1.0 / 15.0;
+    bool relocalizing = false;
     for (int seq = 0; seq < num_seq; seq++)
     {
         // Seq loop
@@ -115,10 +121,20 @@ int main(int argc, char **argv)
                 std::chrono::steady_clock::now();
             if (newTrajectory)
             {
+                relocalizing = true;
+                std::chrono::steady_clock::time_point t3 =
+                    std::chrono::steady_clock::now();
                 bool result = SLAM.RelocalizeFrame(imLeft, imRight, tframe, vector<ORB_SLAM3::IMU::Point>(), vstrImageLeft[seq][ni]);
 
                 if (result)
                 {
+                    std::chrono::steady_clock::time_point t4 =
+                        std::chrono::steady_clock::now();
+                    double treloc =
+                        std::chrono::duration_cast<std::chrono::duration<double>>(t4 - t3)
+                            .count();
+                    DatabaseManager::Instance().addRelocTime(treloc);
+                    relocalizing = false;
                     std::cout << "Successful Trajectory Swap" << std::endl;
                     newTrajectory = false;
                     DatabaseManager::Instance().nextTrajectory();
@@ -155,6 +171,11 @@ int main(int argc, char **argv)
                 std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1)
                     .count();
 
+            if (!relocalizing)
+            {
+                DatabaseManager::Instance().addTrackTime(ttrack);
+            }
+
             vTimesTrack[ni] = ttrack;
 
             // Wait to load the next frame
@@ -181,6 +202,12 @@ int main(int argc, char **argv)
     SLAM.Shutdown();
 
     SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    while (!DatabaseManager::Instance().workerIsDone())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 
     return 0;
 }

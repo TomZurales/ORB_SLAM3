@@ -51,36 +51,6 @@ namespace ORB_SLAM3
           mbResetActiveMap(false), mbActivateLocalizationMode(false),
           mbDeactivateLocalizationMode(false), mbShutDown(false)
     {
-        // Output welcome message
-        cout << endl
-             << "ORB-SLAM3 Copyright (C) 2017-2020 Carlos Campos, Richard Elvira, "
-                "Juan J. Gómez, José M.M. Montiel and Juan D. Tardós, University of "
-                "Zaragoza."
-             << endl
-             << "ORB-SLAM2 Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel "
-                "and Juan D. Tardós, University of Zaragoza."
-             << endl
-             << "This program comes with ABSOLUTELY NO WARRANTY;" << endl
-             << "This is free software, and you are welcome to redistribute it"
-             << endl
-             << "under certain conditions. See LICENSE.txt." << endl
-             << endl;
-
-        cout << "Input sensor was set to: ";
-
-        if (mSensor == MONOCULAR)
-            cout << "Monocular" << endl;
-        else if (mSensor == STEREO)
-            cout << "Stereo" << endl;
-        else if (mSensor == RGBD)
-            cout << "RGB-D" << endl;
-        else if (mSensor == IMU_MONOCULAR)
-            cout << "Monocular-Inertial" << endl;
-        else if (mSensor == IMU_STEREO)
-            cout << "Stereo-Inertial" << endl;
-        else if (mSensor == IMU_RGBD)
-            cout << "RGB-D-Inertial" << endl;
-
         // Check settings file
         cv::FileStorage fsSettings(strSettingsFile.c_str(), cv::FileStorage::READ);
         if (!fsSettings.isOpened())
@@ -200,6 +170,8 @@ namespace ORB_SLAM3
 
             // usleep(10*1000*1000);
         }
+
+        use_vbee = DatabaseManager::Instance().getParams().use_vbee;
 
         if (mSensor == IMU_STEREO || mSensor == IMU_MONOCULAR || mSensor == IMU_RGBD)
             mpAtlas->SetInertialSensor();
@@ -395,13 +367,25 @@ namespace ORB_SLAM3
 
         // Thesis Implementation
 
+        // auto allMPs = mpTracker->mpAtlas->GetCurrentMap()->GetAllMapPoints();
+        // std::vector<MapPoint *> candidateMPs;
+        // for(auto mp : allMPs)
+        // {
+        //     if (!mp || mp->isBad())
+        //         continue;
+        //     if(mpTracker->mCurrentFrame.isInFrustumSimple(mp, 0.1, 5));
+        //         candidateMPs.push_back(mp);
+        // }
+        if (!use_vbee)
+            return Tcw;
+
         std::vector<MapPoint *> seenMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
-        std::vector<bool> outliers = mpTracker->mCurrentFrame.mvbOutlier;
+        // std::vector<bool> outliers = mpTracker->mCurrentFrame.mvbOutlier;
 
         for (size_t i = 0; i < seenMapPoints.size(); i++)
         {
             // Skip outliers, null points, and bad points
-            if (outliers[i] || !seenMapPoints[i] || seenMapPoints[i]->isBad())
+            if (!seenMapPoints[i] || seenMapPoints[i]->isBad())
                 continue;
 
             if (bestObservations.find(seenMapPoints[i]) != bestObservations.end())
@@ -427,17 +411,17 @@ namespace ORB_SLAM3
             }
         }
 
-        std::vector<MapPoint *> localMapPoints = mpTracker->GetLocalMapMPS();
-        std::vector<KeyFrame *> localKeyFrames = mpTracker->GetLocalKeyFrames();
-        for (auto kf : localKeyFrames)
-        {
-            if (!kf || kf->isBad())
-                continue;
-            auto kfMapPoints = kf->GetMapPoints();
-            localMapPoints.insert(localMapPoints.end(), kfMapPoints.begin(), kfMapPoints.end());
-        }
+        // std::vector<MapPoint *> localMapPoints = mpTracker->GetLocalMapMPS();
+        std::vector<MapPoint *> allMapPoints = mpTracker->mpAtlas->GetCurrentMap()->GetAllMapPoints();
+        // for (auto kf : localKeyFrames)
+        // {
+        //     if (!kf || kf->isBad())
+        //         continue;
+        //     auto kfMapPoints = kf->GetMapPoints();
+        //     localMapPoints.insert(localMapPoints.end(), kfMapPoints.begin(), kfMapPoints.end());
+        // }
 
-        for (auto mp : localMapPoints)
+        for (auto mp : allMapPoints)
         {
             if (!mp)
                 continue;
@@ -689,12 +673,16 @@ namespace ORB_SLAM3
 
         mpLocalMapper->RequestFinish();
         mpLoopCloser->RequestFinish();
-        /*if(mpViewer)
+        // Ensure the viewer thread is finished and joined before shutdown
+        if (mpViewer && mptViewer)
         {
             mpViewer->RequestFinish();
-            while(!mpViewer->isFinished())
+            while (!mpViewer->isFinished())
                 usleep(5000);
-        }*/
+            mptViewer->join();
+            delete mptViewer;
+            mptViewer = nullptr;
+        }
 
         // Wait until all thread have effectively stopped
         /*while(!mpLocalMapper->isFinished() || !mpLoopCloser->isFinished() ||
@@ -1316,10 +1304,6 @@ namespace ORB_SLAM3
                 Sophus::SE3f Twb = pKF->GetImuPose();
                 Eigen::Quaternionf q = Twb.unit_quaternion();
                 Eigen::Vector3f twb = Twb.translation();
-                f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
-                  << twb(0) << " " << twb(1) << " " << twb(2) << " " << q.x() << " "
-                  << q.y() << " " << q.z() << " " << q.w() << endl;
-
                 DatabaseManager::Instance().addKeyframePose(pKF->mTimeStamp, twb(0), twb(1), twb(2), q.x(), q.y(), q.z(), q.w());
             }
             else
@@ -1327,9 +1311,6 @@ namespace ORB_SLAM3
                 Sophus::SE3f Twc = pKF->GetPoseInverse();
                 Eigen::Quaternionf q = Twc.unit_quaternion();
                 Eigen::Vector3f t = Twc.translation();
-                f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
-                  << t(0) << " " << t(1) << " " << t(2) << " " << q.x() << " " << q.y()
-                  << " " << q.z() << " " << q.w() << endl;
                 DatabaseManager::Instance().addKeyframePose(pKF->mTimeStamp, t(0), t(1), t(2), q.x(), q.y(), q.z(), q.w());
             }
         }

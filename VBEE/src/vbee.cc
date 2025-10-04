@@ -1,20 +1,21 @@
-
 #include "vbee.h"
 #include <algorithm>
-
 
 VBEE::VBEE(VBEEParams params, ObservabilityModelParams obsParams)
     : params(params), model(obsParams), epe(), p_e(params.init_p_e), observability(params.init_observability) {}
 
-float VBEE::Update(Observation observation) {
-    if(observation.s == 0.0f) {
+float VBEE::Update(Observation observation)
+{
+    if (observation.s == 0.0f)
+    {
         seenStatus = NOT_SEEN;
     }
-    else {
+    else
+    {
         seenStatus = SEEN;
     }
-    
-    if(!beenSeen && observation.s == 0.0f)
+
+    if (!beenSeen && observation.s == 0.0f)
         return p_e;
     beenSeen = true;
 
@@ -50,18 +51,26 @@ float VBEE::Update(Eigen::Vector3f observerPose, Eigen::Vector3f mapPointPose, b
     return Update((mapPointPose - observerPose).normalized(), seen);
 }
 
-float VBEE::Query() const {
+float VBEE::Query() const
+{
     return p_e;
 }
 
-void VBEE::Merge(VBEE &other) {
+float VBEE::QueryRANSAC() const
+{
+    return p_e;
+}
+
+void VBEE::Merge(VBEE &other)
+{
     // Merge the existence probabilities
     float avg_p_e = std::min(0.999f, std::max(0.001f, (p_e + other.p_e) / 2.0f));
 
     // Merge observability
     float avg_observability = std::min(0.75f, std::max(0.25f, (observability + other.observability) / 2.0f));
 
-    for(auto observation : other.model.prev_observations) {
+    for (auto observation : other.model.prev_observations)
+    {
         this->Update(observation); // No feedback for merging
         this->set_observability(avg_observability);
         this->set_pe(avg_p_e);
@@ -70,7 +79,8 @@ void VBEE::Merge(VBEE &other) {
     this->set_pe(avg_p_e);
 }
 
-void VBEE::Reset() {
+void VBEE::Reset()
+{
     p_e = params.init_p_e;
     observability = params.init_observability;
 

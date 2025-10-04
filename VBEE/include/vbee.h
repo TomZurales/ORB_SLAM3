@@ -8,7 +8,8 @@
 #include "observability_model.h"
 #include "observation.h"
 
-typedef struct {
+typedef struct
+{
     std::string model;
     float init_p_e;
     float damping_coeff;
@@ -16,37 +17,44 @@ typedef struct {
     float observability_damping_coeff;
 } VBEEParams;
 
-typedef enum {
+typedef enum
+{
     SEEN = 0,
     NOT_SEEN,
     ELSEWHERE
 } SeenStatus;
 
-class VBEE {
+class VBEE
+{
     friend class boost::serialization::access;
     template <class Archive>
-    void serialize(Archive &ar, const unsigned int version) {
+    void serialize(Archive &ar, const unsigned int version)
+    {
         ar & p_e;
         ar & observability;
         ar & model;
     }
+
 public:
     VBEE() = default;
     VBEE(VBEEParams, ObservabilityModelParams);
-    ~VBEE() = default;  
+    ~VBEE() = default;
 
     float Update(Observation);
     float Update(Eigen::Vector3f v, bool seen);
     float Update(Eigen::Vector3f observerPose, Eigen::Vector3f mapPointPose, bool seen);
     void Merge(VBEE &other);
     float Query() const;
+    float QueryRANSAC() const;
     void Reset();
 
-    SeenStatus GetSeenStatus() const {
+    SeenStatus GetSeenStatus() const
+    {
         return seenStatus;
     }
 
-    void SetSeenStatus(SeenStatus status) {
+    void SetSeenStatus(SeenStatus status)
+    {
         seenStatus = status;
     }
 
@@ -64,11 +72,13 @@ private:
     float p_e;
     float observability;
 
-    void set_pe(float pe) {
+    void set_pe(float pe)
+    {
         p_e = std::min(0.999f, std::max(0.001f, pe));
     }
 
-    void set_observability(float obs) {
+    void set_observability(float obs)
+    {
         observability = std::min(0.75f, std::max(0.25f, obs));
     }
 };

@@ -200,6 +200,9 @@ namespace ORB_SLAM3
                              const double &timestamp,
                              string filename);
 
+        // Atlas
+        Atlas *mpAtlas;
+
     protected:
         // Main tracking function. It is independent of the input sensor.
         void Track();
@@ -292,9 +295,6 @@ namespace ORB_SLAM3
         MapDrawer *mpMapDrawer;
 
         bool bStepByStep;
-
-        // Atlas
-        Atlas *mpAtlas;
 
         // PointProbability *pPointProbability;
 

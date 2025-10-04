@@ -612,6 +612,12 @@ namespace ORB_SLAM3
 
         // Check positive depth
         const float &PcZ = Pc(2);
+
+        if (PcZ < 0.0f)
+        {
+            return false;
+        }
+
         const float invz = 1.0f / PcZ;
 
         const Eigen::Vector2f uv = mpCamera->project(Pc);

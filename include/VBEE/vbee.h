@@ -10,7 +10,8 @@
 #include "observation.h"
 #include "VBEE/seen_status.h"
 
-typedef struct {
+typedef struct
+{
     std::string model;
     float init_p_e;
     float damping_coeff;
@@ -18,32 +19,37 @@ typedef struct {
     float observability_damping_coeff;
 } VBEEParams;
 
-class VBEE {
+class VBEE
+{
     friend class boost::serialization::access;
     template <class Archive>
-    void serialize(Archive &ar, const unsigned int version) {
+    void serialize(Archive &ar, const unsigned int version)
+    {
         ar & p_e;
         ar & observability;
         ar & model;
     }
+
 public:
     VBEE() = default;
     VBEE(int);
     VBEE(VBEEParams, ObservabilityModelParams, int);
-    ~VBEE() = default;  
+    ~VBEE() = default;
 
     float Update(Observation);
     float Update(Eigen::Vector3f v, bool seen);
     float Update(Eigen::Vector3f observerPose, Eigen::Vector3f mapPointPose, bool seen);
     void Merge(VBEE &other);
-    float Query() const;
+    float Query(bool ransac = false) const;
     void Reset();
 
-    SeenStatus GetSeenStatus() const {
+    SeenStatus GetSeenStatus() const
+    {
         return seenStatus;
     }
 
-    void SetSeenStatus(SeenStatus status) {
+    void SetSeenStatus(SeenStatus status)
+    {
         seenStatus = status;
     }
 
@@ -63,14 +69,16 @@ private:
 
     int mpID = -1;
 
-    void set_pe(float pe) {
+    void set_pe(float pe)
+    {
         p_e = std::min(0.999f, std::max(0.001f, pe));
     }
 
-    void set_observability(float obs) {
+    void set_observability(float obs)
+    {
         observability = std::min(0.75f, std::max(0.25f, obs));
     }
 
     bool in_use = true;
-
+    bool weight_ransac = true; // Whether to use VBEE for RANSAC weighting
 };

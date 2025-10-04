@@ -4,39 +4,38 @@
 VBEE::VBEE(VBEEParams params, ObservabilityModelParams obsParams, int mpID)
     : params(params), model(obsParams), epe(), p_e(params.init_p_e), observability(params.init_observability), mpID(mpID), in_use(true) {}
 
-VBEE::VBEE(int mpID): mpID(mpID)
+VBEE::VBEE(int mpID) : mpID(mpID)
 {
     DBParams dbParams = DatabaseManager::Instance().getParams();
 
     in_use = dbParams.use_vbee;
 
-    if(!in_use)
+    if (!in_use)
         return;
+
+    weight_ransac = dbParams.use_vbee;
 
     params = VBEEParams{
         .model = "KNN",
         .init_p_e = dbParams.init_p_e,
         .damping_coeff = dbParams.damp_coeff,
         .init_observability = dbParams.init_obs,
-        .observability_damping_coeff = dbParams.obs_damp_coeff
-    };
+        .observability_damping_coeff = dbParams.obs_damp_coeff};
 
     model = ObservabilityModel(ObservabilityModelParams{
         .k = dbParams.k,
         .n = dbParams.n,
         .angle_threshold = dbParams.a_th,
-        .feedback_threshold = dbParams.f_th
-    });
+        .feedback_threshold = dbParams.f_th});
 
     epe = ExistenceProbabilityEstimator();
     p_e = params.init_p_e;
     observability = params.init_observability;
-
 };
 
 float VBEE::Update(Observation observation)
 {
-    if(!in_use)
+    if (!in_use)
         return 1.0f;
     if (observation.s == 0.0f)
     {
@@ -85,16 +84,18 @@ float VBEE::Update(Eigen::Vector3f observerPose, Eigen::Vector3f mapPointPose, b
     return Update((mapPointPose - observerPose).normalized(), seen);
 }
 
-float VBEE::Query() const
+float VBEE::Query(bool ransac) const
 {
-    if(!in_use)
+    if (!in_use)
+        return 1.0f;
+    if (ransac && !weight_ransac)
         return 1.0f;
     return p_e;
 }
 
 void VBEE::Merge(VBEE &other)
 {
-    if(!in_use)
+    if (!in_use)
         return;
     // Merge the existence probabilities
     float avg_p_e = std::min(0.999f, std::max(0.001f, (p_e + other.p_e) / 2.0f));

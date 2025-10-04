@@ -2,6 +2,7 @@ CREATE TABLE
     'Params' (
         'name' TEXT NOT NULL,
         'use_vbee' INTEGER NOT NULL DEFAULT 1,
+        'weight_ransac' INTEGER NOT NULL DEFAULT 1,
         'k' INTEGER NOT NULL DEFAULT 150,
         'n' INTEGER NOT NULL DEFAULT 15,
         'a_th' INTEGER NOT NULL DEFAULT 0.52,
@@ -53,4 +54,29 @@ CREATE TABLE
         'r_y' REAL NOT NULL,
         'r_z' REAL NOT NULL,
         'r_w' REAL NOT NULL
+    );
+
+CREATE TABLE
+    'RANSACStats' (
+        'timestamp' REAL NOT NULL,
+        'type' TEXT NOT NULL,
+        'iterations' INTEGER NOT NULL,
+        'inliers' INTEGER NOT NULL,
+        'time' REAL NOT NULL,
+        'success' INTEGER NOT NULL,
+        'refined' INTEGER NOT NULL DEFAULT 0
+    );
+
+CREATE TABLE
+    'TrackTimes' (
+        'Id' INTEGER PRIMARY KEY AUTOINCREMENT,
+        'time' REAL NOT NULL,
+        'traj' INTEGER NOT NULL
+    );
+
+CREATE TABLE
+    'RelocTimes' (
+        'Id' INTEGER PRIMARY KEY AUTOINCREMENT,
+        'time' REAL NOT NULL,
+        'traj' INTEGER NOT NULL
     );
