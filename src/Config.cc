@@ -21,8 +21,9 @@
 
 #include "Config.h"
 
-namespace ORB_SLAM3 {
+namespace ORB_SLAM3
+{
 
-bool ConfigParser::ParseConfigFile(std::string &strConfigFile) { return true; }
+    bool ConfigParser::ParseConfigFile(std::string &strConfigFile) { return true; }
 
 } // namespace ORB_SLAM3
