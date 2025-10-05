@@ -1,37 +1,37 @@
 #pragma once
 
-#include "viewpoint.h"
 #include "observation.h"
-#include <vector>
+#include "viewpoint.h"
 #include <boost/serialization/serialization.hpp>
+#include <vector>
 
 typedef struct {
-    int k;
-    int n;
-    float angle_threshold;
-    float feedback_threshold;
+  int k;
+  int n;
+  float angle_threshold;
+  float feedback_threshold;
 } ObservabilityModelParams;
 
 class ObservabilityModel {
-    friend class VBEE;
-    friend class boost::serialization::access;
-    template <class Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        ar & prev_observations;
-    }
+  friend class VBEE;
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive &ar, const unsigned int version) {
+    ar & prev_observations;
+  }
 
 public:
-    ObservabilityModel() = default;
-    ObservabilityModel(ObservabilityModelParams params): params(params) {};
-    ~ObservabilityModel() = default;
+  ObservabilityModel() = default;
+  ObservabilityModel(ObservabilityModelParams params) : params(params) {};
+  ~ObservabilityModel() = default;
 
-    float Estimate(const Viewpoint &viewpoint);
+  float Estimate(const Viewpoint &viewpoint);
 
-    void Update(const Observation &observation, float feedback);
-    
+  void Update(const Observation &observation, float feedback);
+
 private:
-    ObservabilityModelParams params;
+  ObservabilityModelParams params;
 
 protected:
-    std::vector<Observation> prev_observations;
+  std::vector<Observation> prev_observations;
 };

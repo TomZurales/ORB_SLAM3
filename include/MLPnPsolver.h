@@ -243,7 +243,6 @@ private:
   GeometricCamera *mpCamera;
 
   std::vector<float> vbeeWeights;
-
 };
 
 } // namespace ORB_SLAM3

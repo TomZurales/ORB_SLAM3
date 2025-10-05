@@ -224,8 +224,8 @@ bool LocalMapping::CheckNewKeyFrames() {
 }
 
 // Set mpCurrentKeyFrame to the front of the mlNewKeyFrames stack.
-// Calculates BoW vector for the keyframe, associates map points with other keyframes
-// and updates normal and depth for the map points.
+// Calculates BoW vector for the keyframe, associates map points with other
+// keyframes and updates normal and depth for the map points.
 void LocalMapping::ProcessNewKeyFrame() {
   {
     unique_lock<mutex> lock(mMutexNewKFs);
@@ -248,7 +248,8 @@ void LocalMapping::ProcessNewKeyFrame() {
           pMP->AddObservation(mpCurrentKeyFrame, i);
           pMP->UpdateNormalAndDepth();
           pMP->ComputeDistinctiveDescriptors();
-        } else // this can only happen for new stereo points inserted by the Tracking
+        } else // this can only happen for new stereo points inserted by the
+               // Tracking
         {
           mlpRecentAddedMapPoints.push_back(pMP);
         }
@@ -268,9 +269,10 @@ void LocalMapping::EmptyQueue() {
     ProcessNewKeyFrame();
 }
 
-// Culls 
+// Culls
 void LocalMapping::MapPointCulling() {
-  list<MapPoint *>::iterator recentlyAddedMapPointIterator = mlpRecentAddedMapPoints.begin();
+  list<MapPoint *>::iterator recentlyAddedMapPointIterator =
+      mlpRecentAddedMapPoints.begin();
   const unsigned long currentKeyframeId = mpCurrentKeyFrame->mnId;
 
   int nThObs;
@@ -285,18 +287,21 @@ void LocalMapping::MapPointCulling() {
   while (recentlyAddedMapPointIterator != mlpRecentAddedMapPoints.end()) {
     MapPoint *pMP = *recentlyAddedMapPointIterator;
 
-    
     if (pMP->isBad())
-      recentlyAddedMapPointIterator = mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
+      recentlyAddedMapPointIterator =
+          mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
     else if (pMP->GetFoundRatio() < 0.25f) {
       pMP->SetBadFlag();
-      recentlyAddedMapPointIterator = mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
+      recentlyAddedMapPointIterator =
+          mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
     } else if ((currentKeyframeId - pMP->mnFirstKFid) >= 2 &&
                pMP->Observations() <= cnThObs) {
       pMP->SetBadFlag();
-      recentlyAddedMapPointIterator = mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
+      recentlyAddedMapPointIterator =
+          mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
     } else if ((currentKeyframeId - pMP->mnFirstKFid) >= 3)
-      recentlyAddedMapPointIterator = mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
+      recentlyAddedMapPointIterator =
+          mlpRecentAddedMapPoints.erase(recentlyAddedMapPointIterator);
     else {
       recentlyAddedMapPointIterator++;
       borrar--;
@@ -787,7 +792,7 @@ bool LocalMapping::AcceptKeyFrames() {
   return mbAcceptKeyFrames;
 }
 
-// Sets the mbAcceptKeyFrames boolean based on the value of 'flag'. 
+// Sets the mbAcceptKeyFrames boolean based on the value of 'flag'.
 void LocalMapping::SetAcceptKeyFrames(bool flag) {
   unique_lock<mutex> lock(mMutexAccept);
   mbAcceptKeyFrames = flag;

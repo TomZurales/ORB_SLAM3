@@ -4,11 +4,12 @@
 
 class ExistenceProbabilityEstimator {
 public:
-    ExistenceProbabilityEstimator();
-    ~ExistenceProbabilityEstimator() = default;
+  ExistenceProbabilityEstimator();
+  ~ExistenceProbabilityEstimator() = default;
 
-    float Update(Observation o, float prior, float model_estimate);
+  float Update(Observation o, float prior, float model_estimate);
+
 private:
-    float fn; // false negative rate
-    float fp; // false positive rate
+  float fn; // false negative rate
+  float fp; // false positive rate
 };

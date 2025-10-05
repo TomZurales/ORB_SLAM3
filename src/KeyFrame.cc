@@ -63,8 +63,8 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB)
       mnPlaceRecognitionQuery(0), mnPlaceRecognitionWords(0),
       mPlaceRecognitionScore(0), fx(F.fx), fy(F.fy), cx(F.cx), cy(F.cy),
       invfx(F.invfx), invfy(F.invfy), mbf(F.mbf), mb(F.mb),
-      mThDepth(F.mThDepth), N(F.numKeyPoints), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
-      mvuRight(F.mvuRight), mvDepth(F.mvDepth),
+      mThDepth(F.mThDepth), N(F.numKeyPoints), mvKeys(F.mvKeys),
+      mvKeysUn(F.mvKeysUn), mvuRight(F.mvuRight), mvDepth(F.mvDepth),
       mDescriptors(F.mDescriptors.clone()), mBowVec(F.mBowVec),
       mFeatVec(F.mFeatVec), mnScaleLevels(F.mnScaleLevels),
       mfScaleFactor(F.mfScaleFactor), mfLogScaleFactor(F.mfLogScaleFactor),
@@ -80,8 +80,9 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB)
       mNameFile(F.mNameFile), mnMergeCorrectedForKF(0), mpCamera(F.mpCamera),
       mpCamera2(F.mpCamera2), mvLeftToRightMatch(F.mvLeftToRightMatch),
       mvRightToLeftMatch(F.mvRightToLeftMatch), mTlr(F.GetRelativePoseTlr()),
-      mvKeysRight(F.mvKeysRight), NLeft(F.numKeyPointsLeft), NRight(F.numKeyPointsRight),
-      mTrl(F.GetRelativePoseTrl()), mnNumberOfOpt(0), mbHasVelocity(false) {
+      mvKeysRight(F.mvKeysRight), NLeft(F.numKeyPointsLeft),
+      NRight(F.numKeyPointsRight), mTrl(F.GetRelativePoseTrl()),
+      mnNumberOfOpt(0), mbHasVelocity(false) {
   mnId = nNextId++;
 
   mGrid.resize(mnGridCols);
