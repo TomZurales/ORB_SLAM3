@@ -36,6 +36,8 @@
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/serialization.hpp>
 
+class VBEE;
+
 namespace ORB_SLAM3 {
 
 class KeyFrame;
@@ -111,6 +113,8 @@ public:
   MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
            const int &idxF);
 
+  ~MapPoint();
+
   void SetWorldPos(const Eigen::Vector3f &Pos);
   Eigen::Vector3f GetWorldPos();
 
@@ -160,9 +164,10 @@ public:
                 map<long unsigned int, MapPoint *> &mpMPid);
 
 #ifdef TCZ_THESIS
-  float getProbExists();
-  void offsetProbExists(float offset);
-  bool isCurrentlySeen = false;
+  // float getProbExists();
+  // void offsetProbExists(float offset);
+  // bool isCurrentlySeen = false;
+  std::unique_ptr<VBEE> vbee;
 #endif
 
 public:
@@ -213,6 +218,10 @@ public:
 
   // #ifdef TCZ_THESIS
   float probExists = 0;
+  bool isCandidate = false;
+  bool isInFrustum = false;
+  bool isCurrentlySeen = false;
+
   // #endif
 
 protected:

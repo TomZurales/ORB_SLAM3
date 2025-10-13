@@ -1,7 +1,4 @@
 {
-  "cmake.buildToolArgs": [
-    "-j2"
-  ],
   "cmake.debugConfig": {
     "args": [
       "/home/tom/workspace/Thesis/slam_systems/ORB_SLAM3/Vocabulary/ORBvoc.txt",

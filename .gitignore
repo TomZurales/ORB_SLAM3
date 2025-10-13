@@ -92,3 +92,6 @@ borrar/*
 
 */ExecMean.txt
 .vscode/
+
+# Large test DBs
+*.db
