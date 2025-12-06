@@ -10,7 +10,7 @@
  */
 
 #include <sstream>
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include <string>
 #include <vector>
 
