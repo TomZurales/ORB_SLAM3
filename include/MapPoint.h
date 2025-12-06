@@ -23,9 +23,9 @@
 #include "KeyFrame.h"
 #include "Frame.h"
 #include "Map.h"
-#include "Converter.h"
 
 #include "SerializationUtils.h"
+#include "VBEE/vbee.h"
 
 #include <opencv2/core/core.hpp>
 #include <mutex>
@@ -206,6 +206,10 @@ public:
     static std::mutex mGlobalMutex;
 
     unsigned int mnOriginMapId;
+
+    VBEE vbee;
+    bool fromPreviousMap;
+    bool isInCameraView = false;
 
 protected:    
 

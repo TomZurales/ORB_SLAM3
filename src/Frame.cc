@@ -585,6 +585,43 @@ bool Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
     }
 }
 
+bool Frame::isInFrustumSimple(MapPoint *pMP) {
+
+  // 3D in absolute coordinates
+  Eigen::Matrix<float, 3, 1> P = pMP->GetWorldPos();
+
+  // 3D in camera coordinates
+  const Eigen::Matrix<float, 3, 1> Pc = mRcw * P + mtcw;
+  const float Pc_dist = Pc.norm();
+
+  // Check positive depth
+  const float &PcZ = Pc(2);
+
+  if (PcZ < 0.0f) {
+    return false;
+  }
+
+  const float invz = 1.0f / PcZ;
+
+  const Eigen::Vector2f uv = mpCamera->project(Pc);
+
+  if (uv(0) < mnMinX || uv(0) > mnMaxX)
+    return false;
+  if (uv(1) < mnMinY || uv(1) > mnMaxY)
+    return false;
+
+  // Check distance is in the scale invariance region of the MapPoint
+  const float maxDistance = pMP->GetMaxDistanceInvariance();
+  const float minDistance = pMP->GetMinDistanceInvariance();
+  const Eigen::Vector3f PO = P - mOw;
+  const float dist = PO.norm();
+
+  if (dist < minDistance || dist > maxDistance)
+    return false;
+
+  return true;
+}
+
 bool Frame::ProjectPointDistort(MapPoint* pMP, cv::Point2f &kp, float &u, float &v)
 {
 
