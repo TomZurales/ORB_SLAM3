@@ -161,8 +161,8 @@ class Transpose<Matrix<Scalar, M, N>> {
 /// being matrices or a scalars.
 ///
 template <class T>
-auto maxMetric(T const& p0, T const& p1)
-    -> decltype(details::MaxMetric<T>::impl(p0, p1)) {
+auto maxMetric(T const& p0,
+               T const& p1) -> decltype(details::MaxMetric<T>::impl(p0, p1)) {
   return details::MaxMetric<T>::impl(p0, p1);
 }
 

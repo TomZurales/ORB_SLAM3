@@ -14,9 +14,9 @@ template <class T>
 class IsStreamable {
  private:
   template <class TT>
-  static auto test(int)
-      -> decltype(std::declval<std::stringstream&>() << std::declval<TT>(),
-                  std::true_type());
+  static auto test(int) -> decltype(std::declval<std::stringstream&>()
+                                        << std::declval<TT>(),
+                                    std::true_type());
 
   template <class>
   static auto test(...) -> std::false_type;
@@ -69,4 +69,4 @@ inline std::string FormatString() { return std::string(); }
 }  // namespace details
 }  // namespace Sophus
 
-#endif //SOPHUS_FORMATSTRING_HPP
+#endif  // SOPHUS_FORMATSTRING_HPP
