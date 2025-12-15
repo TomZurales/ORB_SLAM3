@@ -50,8 +50,11 @@
  ******************************************************************************/
 
 #include "MLPnPsolver.h"
+#include "VBEE/vbee.h"
 
 #include <Eigen/Sparse>
+
+extern VBEESettings vbeeSettings;
 
 namespace ORB_SLAM3 {
 MLPnPsolver::MLPnPsolver(const Frame &F,
@@ -63,6 +66,7 @@ MLPnPsolver::MLPnPsolver(const Frame &F,
   mvP2D.reserve(F.mvpMapPoints.size());
   mvSigma2.reserve(F.mvpMapPoints.size());
   mvP3Dw.reserve(F.mvpMapPoints.size());
+  vbeeWeights.reserve(F.mvpMapPoints.size());
   mvKeyPointIndices.reserve(F.mvpMapPoints.size());
   mvAllIndices.reserve(F.mvpMapPoints.size());
 
@@ -78,6 +82,8 @@ MLPnPsolver::MLPnPsolver(const Frame &F,
 
         mvP2D.push_back(kp.pt);
         mvSigma2.push_back(F.mvLevelSigma2[kp.octave]);
+        vbeeWeights.push_back(vbeeSettings.weight_ransac ? pMP->vbee.Query(true)
+                                                         : 1.0f);
 
         // Bearing vector should be normalized
         cv::Point3f cv_br = mpCamera->unproject(kp.pt);
@@ -129,18 +135,26 @@ bool MLPnPsolver::iterate(int nIterations, bool &bNoMore,
     points_t p3DS(mRansacMinSet);
     vector<int> indexes(mRansacMinSet);
 
+    auto weights = vbeeWeights;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::vector<int> randis;
+
+    for (int i = 0; i < mRansacMinSet; i++) {
+      std::discrete_distribution<> dist(weights.begin(), weights.end());
+      int idx = dist(gen);
+      randis.push_back(idx);
+      weights[idx] = 0.0; // Set weight to zero to avoid re-selection
+    }
+
     // Get min set of points
-    for (short i = 0; i < mRansacMinSet; ++i) {
-      int randi = DUtils::Random::RandomInt(0, vAvailableIndices.size() - 1);
-
-      int idx = vAvailableIndices[randi];
-
+    for (int i = 0; i < randis.size(); i++) {
+      int idx = randis[i];
       bearingVecs[i] = mvBearingVecs[idx];
       p3DS[i] = mvP3Dw[idx];
       indexes[i] = i;
-
-      vAvailableIndices[randi] = vAvailableIndices.back();
-      vAvailableIndices.pop_back();
     }
 
     // By the moment, we are using MLPnP without covariance info

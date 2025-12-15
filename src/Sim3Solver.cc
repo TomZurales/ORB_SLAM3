@@ -29,6 +29,9 @@
 #include "ORBmatcher.h"
 
 #include "Thirdparty/DBoW2/DUtils/Random.h"
+#include "VBEE/vbee.h"
+
+extern VBEESettings vbeeSettings;
 
 namespace ORB_SLAM3 {
 
@@ -57,6 +60,7 @@ Sim3Solver::Sim3Solver(KeyFrame *pKF1, KeyFrame *pKF2,
   mvnIndices1.reserve(mN1);
   mvX3Dc1.reserve(mN1);
   mvX3Dc2.reserve(mN1);
+  vbeeWeights.reserve(mN1);
 
   Eigen::Matrix3f Rcw1 = pKF1->GetRotation();
   Eigen::Vector3f tcw1 = pKF1->GetTranslation();
@@ -106,6 +110,11 @@ Sim3Solver::Sim3Solver(KeyFrame *pKF1, KeyFrame *pKF2,
 
       Eigen::Vector3f X3D2w = pMP2->GetWorldPos();
       mvX3Dc2.push_back(Rcw2 * X3D2w + tcw2);
+
+      vbeeWeights.push_back(
+          vbeeSettings.weight_ransac
+              ? ((pMP1->vbee.Query(true) + pMP2->vbee.Query(true)) / 2)
+              : 1.0f);
 
       mvAllIndices.push_back(idx);
       idx++;
@@ -234,20 +243,45 @@ Eigen::Matrix4f Sim3Solver::iterate(int nIterations, bool &bNoMore,
     nCurrentIterations++;
     mnIterations++;
 
-    vAvailableIndices = mvAllIndices;
+    // VBEE RANSAC Selection
+    auto weights = vbeeWeights;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::vector<int> randis;
+
+    for (int i = 0; i < 3; i++) {
+      std::discrete_distribution<> dist(weights.begin(), weights.end());
+      int idx = dist(gen);
+      randis.push_back(idx);
+      weights[idx] = 0.0; // Set weight to zero to avoid re-selection
+    }
 
     // Get min set of points
-    for (short i = 0; i < 3; ++i) {
-      int randi = DUtils::Random::RandomInt(0, vAvailableIndices.size() - 1);
-
-      int idx = vAvailableIndices[randi];
+    for (int i = 0; i < randis.size(); i++) {
+      int idx = randis[i];
 
       P3Dc1i.col(i) = mvX3Dc1[idx];
       P3Dc2i.col(i) = mvX3Dc2[idx];
-
-      vAvailableIndices[randi] = vAvailableIndices.back();
-      vAvailableIndices.pop_back();
     }
+
+    // vAvailableIndices = mvAllIndices;
+
+    // // Get min set of points
+    // for (short i = 0; i < 3; ++i)
+    // {
+    //     int randi = DUtils::Random::RandomInt(0, vAvailableIndices.size() -
+    //     1);
+
+    //     int idx = vAvailableIndices[randi];
+
+    //     P3Dc1i.col(i) = mvX3Dc1[idx];
+    //     P3Dc2i.col(i) = mvX3Dc2[idx];
+
+    //     vAvailableIndices[randi] = vAvailableIndices.back();
+    //     vAvailableIndices.pop_back();
+    // }
 
     ComputeSim3(P3Dc1i, P3Dc2i);
 

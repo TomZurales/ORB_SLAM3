@@ -21,6 +21,7 @@
 
 #include "MapPoint.h"
 #include "ORBmatcher.h"
+#include "VBEE/vbee.h"
 
 #include <mutex>
 
@@ -34,8 +35,9 @@ MapPoint::MapPoint()
       mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0),
       mnLoopPointForKF(0), mnCorrectedByKF(0), mnCorrectedReference(0),
       mnBAGlobalForKF(0), mnVisible(1), mnFound(1), mbBad(false),
-      mpReplaced(static_cast<MapPoint *>(NULL)) {
+      mpReplaced(static_cast<MapPoint *>(NULL)), fromPreviousMap(false) {
   mpReplaced = static_cast<MapPoint *>(NULL);
+  vbee = VBEE(mnId);
 }
 
 MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map *pMap)
@@ -45,7 +47,8 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map *pMap)
       mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF),
       mnVisible(1), mnFound(1), mbBad(false),
       mpReplaced(static_cast<MapPoint *>(NULL)), mfMinDistance(0),
-      mfMaxDistance(0), mpMap(pMap), mnOriginMapId(pMap->GetId()) {
+      mfMaxDistance(0), mpMap(pMap), mnOriginMapId(pMap->GetId()),
+      fromPreviousMap(false) {
   SetWorldPos(Pos);
 
   mNormalVector.setZero();
@@ -57,6 +60,7 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, KeyFrame *pRefKF, Map *pMap)
   // conflicts with id.
   unique_lock<mutex> lock(mpMap->mMutexPointCreation);
   mnId = nNextId++;
+  vbee = VBEE(mnId);
 }
 
 MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame *pRefKF,
@@ -67,7 +71,8 @@ MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame *pRefKF,
       mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(pRefKF),
       mnVisible(1), mnFound(1), mbBad(false),
       mpReplaced(static_cast<MapPoint *>(NULL)), mfMinDistance(0),
-      mfMaxDistance(0), mpMap(pMap), mnOriginMapId(pMap->GetId()) {
+      mfMaxDistance(0), mpMap(pMap), mnOriginMapId(pMap->GetId()),
+      fromPreviousMap(false) {
   mInvDepth = invDepth;
   mInitU = (double)uv_init.x;
   mInitV = (double)uv_init.y;
@@ -80,6 +85,7 @@ MapPoint::MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame *pRefKF,
   // conflicts with id.
   unique_lock<mutex> lock(mpMap->mMutexPointCreation);
   mnId = nNextId++;
+  vbee = VBEE(mnId);
 }
 
 MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
@@ -89,8 +95,8 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
       mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
       mnCorrectedReference(0), mnBAGlobalForKF(0),
       mpRefKF(static_cast<KeyFrame *>(NULL)), mnVisible(1), mnFound(1),
-      mbBad(false), mpReplaced(NULL), mpMap(pMap),
-      mnOriginMapId(pMap->GetId()) {
+      mbBad(false), mpReplaced(NULL), mpMap(pMap), mnOriginMapId(pMap->GetId()),
+      fromPreviousMap(false) {
   SetWorldPos(Pos);
 
   Eigen::Vector3f Ow;
@@ -123,6 +129,7 @@ MapPoint::MapPoint(const Eigen::Vector3f &Pos, Map *pMap, Frame *pFrame,
   // conflicts with id.
   unique_lock<mutex> lock(mpMap->mMutexPointCreation);
   mnId = nNextId++;
+  vbee = VBEE(mnId);
 }
 
 void MapPoint::SetWorldPos(const Eigen::Vector3f &Pos) {
@@ -291,6 +298,9 @@ void MapPoint::Replace(MapPoint *pMP) {
   pMP->IncreaseFound(nfound);
   pMP->IncreaseVisible(nvisible);
   pMP->ComputeDistinctiveDescriptors();
+
+  pMP->vbee.Merge(this->vbee);
+  pMP->fromPreviousMap = this->fromPreviousMap || pMP->fromPreviousMap;
 
   mpMap->EraseMapPoint(this);
 }

@@ -33,10 +33,13 @@
 
 #include <iostream>
 
+#include "VBEE/vbee.h"
 #include <chrono>
 #include <mutex>
 
 using namespace std;
+
+extern VBEESettings vbeeSettings;
 
 namespace ORB_SLAM3 {
 
@@ -2844,6 +2847,19 @@ bool Tracking::TrackLocalMap() {
     }
 
   mnMatchesInliers = 0;
+  if (vbeeSettings.in_use) {
+    for (vector<MapPoint *>::iterator vit = mvpLocalMapPoints.begin(),
+                                      vend = mvpLocalMapPoints.end();
+         vit != vend; vit++) {
+      MapPoint *pMP = *vit;
+      if (pMP && !pMP->isBad() && pMP->mbTrackInView) {
+        Observation obs = Observation{
+            .v = (pMP->GetWorldPos() - mCurrentFrame.GetCameraCenter()),
+            .s = 0.0};
+        pMP->vbee.Update(obs, false);
+      }
+    }
+  }
 
   // Update MapPoints Statistics
   for (int i = 0; i < mCurrentFrame.N; i++) {
@@ -2851,12 +2867,59 @@ bool Tracking::TrackLocalMap() {
       if (!mCurrentFrame.mvbOutlier[i]) {
         mCurrentFrame.mvpMapPoints[i]->IncreaseFound();
         if (!mbOnlyTracking) {
+          if (vbeeSettings.in_use) {
+            // VBEE Positive observation
+            if (mCurrentFrame.mvpMapPoints[i] &&
+                !mCurrentFrame.mvpMapPoints[i]->isBad()) {
+              Observation obs = Observation{
+                  .v = (mCurrentFrame.mvpMapPoints[i]->GetWorldPos() -
+                        mCurrentFrame.GetCameraCenter()),
+                  .s = 1.0};
+              mCurrentFrame.mvpMapPoints[i]->vbee.Update(
+                  obs, true,
+                  mCurrentFrame.mvpMapPoints[i]
+                      ->fromPreviousMap); // Only update if from previous map
+            }
+          }
           if (mCurrentFrame.mvpMapPoints[i]->Observations() > 0)
             mnMatchesInliers++;
         } else
           mnMatchesInliers++;
-      } else if (mSensor == System::STEREO)
-        mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
+      } else {
+        // VBEE Negative observation
+        if (mCurrentFrame.mvpMapPoints[i] &&
+            !mCurrentFrame.mvpMapPoints[i]->isBad()) {
+          if (vbeeSettings.in_use) {
+            Observation obs =
+                Observation{.v = (mCurrentFrame.mvpMapPoints[i]->GetWorldPos() -
+                                  mCurrentFrame.GetCameraCenter()),
+                            .s = 0.0};
+            if (mCurrentFrame.mvpMapPoints[i]->vbee.Update(
+                    obs, true, mCurrentFrame.mvpMapPoints[i]->fromPreviousMap) <
+                0.25) {
+              if (mCurrentFrame.mvpMapPoints[i]->fromPreviousMap)
+                mCurrentFrame.mvpMapPoints[i]->SetBadFlag();
+            }
+          }
+        }
+
+        if (mSensor == System::STEREO)
+          mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
+      }
+    }
+  }
+
+  if (vbeeSettings.in_use) {
+    for (vector<MapPoint *>::iterator vit = mvpLocalMapPoints.begin(),
+                                      vend = mvpLocalMapPoints.end();
+         vit != vend; vit++) {
+      MapPoint *pMP = *vit;
+      if (pMP && !pMP->isBad()) {
+        if (pMP->vbee.commitUncommittedObservation() < 0.25) {
+          if (pMP->fromPreviousMap)
+            pMP->SetBadFlag();
+        }
+      }
     }
   }
 

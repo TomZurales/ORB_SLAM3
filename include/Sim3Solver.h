@@ -133,6 +133,8 @@ protected:
   // cv::Mat mK2;
 
   GeometricCamera *pCamera1, *pCamera2;
+
+  std::vector<float> vbeeWeights;
 };
 
 } // namespace ORB_SLAM3

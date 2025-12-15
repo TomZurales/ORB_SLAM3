@@ -19,15 +19,18 @@
  * ORB-SLAM3. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>
 #include <chrono>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 
 #include <opencv2/core/core.hpp>
 
 #include <System.h>
+#include <thread>
+
+#include "MapPoint.h"
+#include "Optimizer.h"
+#include "VBEE/vbee.h"
 
 using namespace std;
 
@@ -35,28 +38,39 @@ void LoadImages(const string &strPathLeft, const string &strPathRight,
                 const string &strPathTimes, vector<string> &vstrImageLeft,
                 vector<string> &vstrImageRight, vector<double> &vTimeStamps);
 
+VBEESettings vbeeSettings;
+
 int main(int argc, char **argv) {
-  if (argc < 5) {
-    cerr
-        << endl
-        << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings "
-           "path_to_sequence_folder_1 path_to_times_file_1 "
-           "(path_to_image_folder_2 path_to_times_file_2 ... "
-           "path_to_image_folder_N path_to_times_file_N) (trajectory_file_name)"
-        << endl;
+  if (argc != 6 && argc != 7 && argc != 8) {
+    cerr << endl
+         << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings "
+            "path_to_sequence_folder path_to_times_file trajectory_file_name "
+            "use_vbee vbee_ransac"
+         << endl;
 
     return 1;
   }
 
-  const int num_seq = (argc - 3) / 2;
+  const int num_seq = 1;
   cout << "num_seq = " << num_seq << endl;
-  bool bFileName = (((argc - 3) % 2) == 1);
+  bool bFileName = true;
   string file_name;
   if (bFileName) {
-    file_name = string(argv[argc - 1]);
+    file_name = string(argv[5]);
     cout << "file name: " << file_name << endl;
   }
 
+  bool use_vbee = argc >= 7;
+  bool vbee_ransac = argc == 8;
+
+  if (use_vbee) {
+    vbeeSettings.in_use = true;
+    std::cout << "Using VBEE" << std::endl;
+  }
+  if (vbee_ransac) {
+    vbeeSettings.weight_ransac = true;
+    std::cout << "Using RANSAC" << std::endl;
+  }
   // Load all sequences:
   int seq;
   vector<vector<string>> vstrImageLeft;
@@ -68,6 +82,8 @@ int main(int argc, char **argv) {
   vstrImageRight.resize(num_seq);
   vTimestampsCam.resize(num_seq);
   nImages.resize(num_seq);
+
+  std::vector<double> split_stamps;
 
   int tot_images = 0;
   for (seq = 0; seq < num_seq; seq++) {
@@ -85,6 +101,28 @@ int main(int argc, char **argv) {
 
     nImages[seq] = vstrImageLeft[seq].size();
     tot_images += nImages[seq];
+
+    string pathSplits = pathSeq + "/splits.txt";
+    ifstream fSplits(pathSplits);
+    if (fSplits.is_open()) {
+      string line;
+      while (getline(fSplits, line)) {
+        if (!line.empty()) {
+          try {
+            double stamp = stod(line) / 1e9;
+            split_stamps.push_back(stamp);
+          } catch (const std::exception &) {
+            // Skip lines that cannot be converted to long
+          }
+        }
+      }
+      fSplits.close();
+    }
+  }
+
+  std::cout << "SPLITS FILE DETECTED! Here are the split stamps: " << std::endl;
+  for (auto stamp : split_stamps) {
+    std::cout << stamp << std::endl;
   }
 
   // Vector for tracking time statistics
@@ -96,7 +134,8 @@ int main(int argc, char **argv) {
 
   // Create SLAM system. It initializes all system threads and gets ready to
   // process frames.
-  ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::STEREO, true);
+  ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::STEREO, false,
+                         use_vbee, vbee_ransac);
 
   cv::Mat imLeft, imRight;
   for (seq = 0; seq < num_seq; seq++) {
@@ -142,6 +181,33 @@ int main(int argc, char **argv) {
       SLAM.TrackStereo(imLeft, imRight, tframe, vector<ORB_SLAM3::IMU::Point>(),
                        vstrImageLeft[seq][ni]);
 
+      // TEMPORARY: ONLY LEAVE IN WHILE CREATING VBEE GROUND TRUTHS
+      //   if (ni == nImages[seq] - 2) {
+      //     std::vector<ORB_SLAM3::Map *> vpMaps = SLAM.mpAtlas->GetAllMaps();
+      //     for (ORB_SLAM3::Map *pMap : vpMaps) {
+      //       if (pMap && pMap->GetAllKeyFrames().size() > 0) {
+      //         ORB_SLAM3::Optimizer::GlobalBundleAdjustemnt(pMap, 200);
+      //         std::cout << "Sleeping after optimization" << std::endl;
+      //         std::this_thread::sleep_for(std::chrono::seconds(10));
+      //       }
+      //     }
+      //   }
+      // END GROUND TRUTH CREATION
+
+      if (std::find(split_stamps.begin(), split_stamps.end(), tframe) !=
+          split_stamps.end()) {
+        std::cout << "SPLIT STAMP FOUND. SETTING ALL MAP POINTS TO BE FROM "
+                     "PREVIOUS MAP"
+                  << std::endl;
+        std::vector<ORB_SLAM3::Map *> vpMaps = SLAM.mpAtlas->GetAllMaps();
+        for (ORB_SLAM3::Map *pMap : vpMaps) {
+          for (ORB_SLAM3::MapPoint *pMP : pMap->GetAllMapPoints()) {
+            pMP->fromPreviousMap = true;
+            pMP->vbee.Reset();
+          }
+        }
+      }
+
 #ifdef COMPILEDWITHC11
       std::chrono::steady_clock::time_point t2 =
           std::chrono::steady_clock::now();
@@ -182,13 +248,14 @@ int main(int argc, char **argv) {
       SLAM.ChangeDataset();
     }
   }
+
   // Stop all threads
   SLAM.Shutdown();
 
   // Save camera trajectory
   if (bFileName) {
-    const string kf_file = "kf_" + string(argv[argc - 1]) + ".txt";
-    const string f_file = "f_" + string(argv[argc - 1]) + ".txt";
+    const string kf_file = string(argv[5]) + "_KeyFrame.txt";
+    const string f_file = string(argv[5]) + "_Frame.txt";
     SLAM.SaveTrajectoryEuRoC(f_file);
     SLAM.SaveKeyFrameTrajectoryEuRoC(kf_file);
   } else {

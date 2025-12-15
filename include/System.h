@@ -97,6 +97,7 @@ public:
   // Viewer threads.
   System(const string &strVocFile, const string &strSettingsFile,
          const eSensor sensor, const bool bUseViewer = true,
+         const bool &use_vbee = false, const bool &vbee_ransac = false,
          const int initFr = 0, const string &strSequence = std::string());
 
   // Proccess the given stereo frame. Images must be synchronized and rectified.
@@ -192,6 +193,10 @@ public:
 
   float GetImageScale();
 
+  // Map structure that stores the pointers to all KeyFrames and MapPoints.
+  // Map* mpMap;
+  Atlas *mpAtlas;
+
 #ifdef REGISTER_TIMES
   void InsertRectTime(double &time);
   void InsertResizeTime(double &time);
@@ -213,10 +218,6 @@ private:
   // KeyFrame database for place recognition (relocalization and loop
   // detection).
   KeyFrameDatabase *mpKeyFrameDatabase;
-
-  // Map structure that stores the pointers to all KeyFrames and MapPoints.
-  // Map* mpMap;
-  Atlas *mpAtlas;
 
   // Tracker. It receives a frame and computes the associated camera pose.
   // It also decides when to insert a new keyframe, create some new MapPoints
@@ -257,6 +258,9 @@ private:
 
   // Shutdown flag
   bool mbShutDown;
+
+  bool use_vbee;
+  bool vbee_ransac;
 
   // Tracking state
   int mTrackingState;

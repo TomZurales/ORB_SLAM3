@@ -28,6 +28,7 @@
 #include "Map.h"
 
 #include "SerializationUtils.h"
+#include "VBEE/vbee.h"
 
 #include <mutex>
 #include <opencv2/core/core.hpp>
@@ -204,6 +205,10 @@ public:
   static std::mutex mGlobalMutex;
 
   unsigned int mnOriginMapId;
+
+  VBEE vbee;
+  bool fromPreviousMap;
+  bool isInCameraView = false;
 
 protected:
   // Position in absolute coordinates

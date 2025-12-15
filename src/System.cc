@@ -20,7 +20,9 @@
  */
 
 #include "System.h"
-#include "Converter.h"
+#include "MapPoint.h"
+#include "VBEE/observation.h"
+#include <algorithm>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -30,20 +32,25 @@
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/string.hpp>
 #include <iomanip>
+#include <iostream>
 #include <openssl/md5.h>
 #include <pangolin/pangolin.h>
 #include <thread>
+
+extern VBEESettings vbeeSettings;
 
 namespace ORB_SLAM3 {
 
 Verbose::eLevel Verbose::th = Verbose::VERBOSITY_NORMAL;
 
 System::System(const string &strVocFile, const string &strSettingsFile,
-               const eSensor sensor, const bool bUseViewer, const int initFr,
+               const eSensor sensor, const bool bUseViewer,
+               const bool &use_vbee, const bool &vbee_ransac, const int initFr,
                const string &strSequence)
     : mSensor(sensor), mpViewer(static_cast<Viewer *>(NULL)), mbReset(false),
       mbResetActiveMap(false), mbActivateLocalizationMode(false),
-      mbDeactivateLocalizationMode(false), mbShutDown(false) {
+      mbDeactivateLocalizationMode(false), mbShutDown(false),
+      use_vbee(use_vbee), vbee_ransac(vbee_ransac) {
   // Output welcome message
   cout << endl
        << "ORB-SLAM3 Copyright (C) 2017-2020 Carlos Campos, Richard Elvira, "
@@ -746,15 +753,15 @@ void System::SaveTrajectoryEuRoC(const string &filename) {
       Sophus::SE3f Twb = (pKF->mImuCalib.mTbc * (*lit) * Trw).inverse();
       Eigen::Quaternionf q = Twb.unit_quaternion();
       Eigen::Vector3f twb = Twb.translation();
-      f << setprecision(6) << 1e9 * (*lT) << " " << setprecision(9) << twb(0)
-        << " " << twb(1) << " " << twb(2) << " " << q.x() << " " << q.y() << " "
+      f << setprecision(6) << *lT << " " << setprecision(9) << twb(0) << " "
+        << twb(1) << " " << twb(2) << " " << q.x() << " " << q.y() << " "
         << q.z() << " " << q.w() << endl;
     } else {
       Sophus::SE3f Twc = ((*lit) * Trw).inverse();
       Eigen::Quaternionf q = Twc.unit_quaternion();
       Eigen::Vector3f twc = Twc.translation();
-      f << setprecision(6) << 1e9 * (*lT) << " " << setprecision(9) << twc(0)
-        << " " << twc(1) << " " << twc(2) << " " << q.x() << " " << q.y() << " "
+      f << setprecision(6) << *lT << " " << setprecision(9) << twc(0) << " "
+        << twc(1) << " " << twc(2) << " " << q.x() << " " << q.y() << " "
         << q.z() << " " << q.w() << endl;
     }
 
@@ -1106,7 +1113,7 @@ void System::SaveKeyFrameTrajectoryEuRoC(const string &filename) {
       Sophus::SE3f Twb = pKF->GetImuPose();
       Eigen::Quaternionf q = Twb.unit_quaternion();
       Eigen::Vector3f twb = Twb.translation();
-      f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
+      f << setprecision(6) << pKF->mTimeStamp << " " << setprecision(9)
         << twb(0) << " " << twb(1) << " " << twb(2) << " " << q.x() << " "
         << q.y() << " " << q.z() << " " << q.w() << endl;
 
@@ -1114,9 +1121,9 @@ void System::SaveKeyFrameTrajectoryEuRoC(const string &filename) {
       Sophus::SE3f Twc = pKF->GetPoseInverse();
       Eigen::Quaternionf q = Twc.unit_quaternion();
       Eigen::Vector3f t = Twc.translation();
-      f << setprecision(6) << 1e9 * pKF->mTimeStamp << " " << setprecision(9)
-        << t(0) << " " << t(1) << " " << t(2) << " " << q.x() << " " << q.y()
-        << " " << q.z() << " " << q.w() << endl;
+      f << setprecision(6) << pKF->mTimeStamp << " " << setprecision(9) << t(0)
+        << " " << t(1) << " " << t(2) << " " << q.x() << " " << q.y() << " "
+        << q.z() << " " << q.w() << endl;
     }
   }
   f.close();
@@ -1374,8 +1381,8 @@ bool System::isLost() {
   if (!mpAtlas->isImuInitialized())
     return false;
   else {
-    if ((mpTracker->mState ==
-         Tracking::LOST)) //||(mpTracker->mState==Tracking::RECENTLY_LOST))
+    if (mpTracker->mState ==
+        Tracking::LOST) //||(mpTracker->mState==Tracking::RECENTLY_LOST))
       return true;
     else
       return false;

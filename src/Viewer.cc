@@ -20,9 +20,13 @@
  */
 
 #include "Viewer.h"
+#include "VBEE/vbee.h"
 #include <pangolin/pangolin.h>
 
 #include <mutex>
+#include <sstream>
+
+extern VBEESettings vbeeSettings;
 
 namespace ORB_SLAM3 {
 
@@ -153,7 +157,15 @@ void Viewer::Run() {
   mbFinished = false;
   mbStopped = false;
 
-  pangolin::CreateWindowAndBind("ORB-SLAM3: Map Viewer", 1024, 768);
+  std::stringstream ss;
+  ss << "ORB-SLAM3: Map Viewer";
+  if (vbeeSettings.in_use) {
+    ss << " VBEE";
+    if (vbeeSettings.weight_ransac)
+      ss << " RANSAC";
+  }
+
+  pangolin::CreateWindowAndBind(ss.str(), 1024, 768);
 
   // 3D Mouse handler requires depth testing to be enabled
   glEnable(GL_DEPTH_TEST);
@@ -180,6 +192,9 @@ void Viewer::Run() {
   pangolin::Var<bool> menuStepByStep("menu.Step By Step", false,
                                      true); // false, true
   pangolin::Var<bool> menuStep("menu.Step", false, false);
+  pangolin::Var<bool> menuVBEE("menu.VBEE", vbeeSettings.in_use, true);
+  pangolin::Var<bool> menuRANSAC("menu.RANSAC", vbeeSettings.weight_ransac,
+                                 true);
 
   pangolin::Var<bool> menuShowOptLba("menu.Show LBA opt", false, true);
   // Define Camera Render Object (for view / scene browsing)
@@ -199,7 +214,16 @@ void Viewer::Run() {
   Twc.SetIdentity();
   pangolin::OpenGlMatrix Ow; // Oriented with g in the z axis
   Ow.SetIdentity();
-  cv::namedWindow("ORB-SLAM3: Current Frame");
+
+  std::stringstream ss2;
+  ss2 << "ORB-SLAM3: Current Frame";
+  if (vbeeSettings.in_use) {
+    ss2 << " VBEE";
+    if (vbeeSettings.weight_ransac)
+      ss2 << " RANSAC";
+  }
+
+  cv::namedWindow(ss2.str());
 
   bool bFollow = true;
   bool bLocalizationMode = false;
@@ -319,7 +343,7 @@ void Viewer::Run() {
       cv::resize(toShow, toShow, cv::Size(width, height));
     }
 
-    cv::imshow("ORB-SLAM3: Current Frame", toShow);
+    cv::imshow(ss2.str(), toShow);
     cv::waitKey(mT);
 
     if (menuReset) {
