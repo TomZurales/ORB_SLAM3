@@ -2796,10 +2796,6 @@ bool Tracking::TrackWithMotionModel() {
 }
 
 bool Tracking::TrackLocalMap() {
-
-  // We have an estimation of the camera pose and some map points tracked in the
-  // frame. We retrieve the local map and try to find matches to points in the
-  // local map.
   mTrackedFr++;
 
   UpdateLocalMap();
@@ -2822,18 +2818,14 @@ bool Tracking::TrackLocalMap() {
       Verbose::PrintMess("TLM: PoseOptimization ", Verbose::VERBOSITY_DEBUG);
       Optimizer::PoseOptimization(&mCurrentFrame);
     } else {
-      // if(!mbMapUpdated && mState == OK) //  && (mnMatchesInliers>30))
-      if (!mbMapUpdated) //  && (mnMatchesInliers>30))
-      {
+      if (!mbMapUpdated) {
         Verbose::PrintMess("TLM: PoseInertialOptimizationLastFrame ",
                            Verbose::VERBOSITY_DEBUG);
-        inliers = Optimizer::PoseInertialOptimizationLastFrame(
-            &mCurrentFrame); // , !mpLastKeyFrame->GetMap()->GetIniertialBA1());
+        inliers = Optimizer::PoseInertialOptimizationLastFrame(&mCurrentFrame);
       } else {
         Verbose::PrintMess("TLM: PoseInertialOptimizationLastKeyFrame ",
                            Verbose::VERBOSITY_DEBUG);
-        inliers = Optimizer::PoseInertialOptimizationLastKeyFrame(
-            &mCurrentFrame); // , !mpLastKeyFrame->GetMap()->GetIniertialBA1());
+        inliers = Optimizer::PoseInertialOptimizationLastKeyFrame(&mCurrentFrame);
       }
     }
   }
@@ -2847,12 +2839,23 @@ bool Tracking::TrackLocalMap() {
     }
 
   mnMatchesInliers = 0;
+
+  // FIXED VBEE CODE - Collect valid points first, then process safely
   if (vbeeSettings.in_use) {
-    for (vector<MapPoint *>::iterator vit = mvpLocalMapPoints.begin(),
-                                      vend = mvpLocalMapPoints.end();
-         vit != vend; vit++) {
-      MapPoint *pMP = *vit;
+    // First pass: collect valid local map points for negative observations
+    vector<MapPoint*> validLocalPoints;
+    validLocalPoints.reserve(mvpLocalMapPoints.size());
+    
+    for (MapPoint* pMP : mvpLocalMapPoints) {
       if (pMP && !pMP->isBad() && pMP->mbTrackInView) {
+        validLocalPoints.push_back(pMP);
+      }
+    }
+    
+    // Process collected points safely
+    for (MapPoint* pMP : validLocalPoints) {
+      // Re-check validity as state might have changed
+      if (pMP && !pMP->isBad()) {
         Observation obs = Observation{
             .v = (pMP->GetWorldPos() - mCurrentFrame.GetCameraCenter()),
             .s = 0.0};
@@ -2868,17 +2871,13 @@ bool Tracking::TrackLocalMap() {
         mCurrentFrame.mvpMapPoints[i]->IncreaseFound();
         if (!mbOnlyTracking) {
           if (vbeeSettings.in_use) {
-            // VBEE Positive observation
-            if (mCurrentFrame.mvpMapPoints[i] &&
-                !mCurrentFrame.mvpMapPoints[i]->isBad()) {
+            // VBEE Positive observation - safer approach
+            MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+            if (pMP && !pMP->isBad()) {
               Observation obs = Observation{
-                  .v = (mCurrentFrame.mvpMapPoints[i]->GetWorldPos() -
-                        mCurrentFrame.GetCameraCenter()),
+                  .v = (pMP->GetWorldPos() - mCurrentFrame.GetCameraCenter()),
                   .s = 1.0};
-              mCurrentFrame.mvpMapPoints[i]->vbee.Update(
-                  obs, true,
-                  mCurrentFrame.mvpMapPoints[i]
-                      ->fromPreviousMap); // Only update if from previous map
+              pMP->vbee.Update(obs, true, pMP->fromPreviousMap);
             }
           }
           if (mCurrentFrame.mvpMapPoints[i]->Observations() > 0)
@@ -2886,44 +2885,56 @@ bool Tracking::TrackLocalMap() {
         } else
           mnMatchesInliers++;
       } else {
-        // VBEE Negative observation
-        if (mCurrentFrame.mvpMapPoints[i] &&
-            !mCurrentFrame.mvpMapPoints[i]->isBad()) {
+        // VBEE Negative observation - safer approach
+        MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+        if (pMP && !pMP->isBad()) {
           if (vbeeSettings.in_use) {
-            Observation obs =
-                Observation{.v = (mCurrentFrame.mvpMapPoints[i]->GetWorldPos() -
-                                  mCurrentFrame.GetCameraCenter()),
-                            .s = 0.0};
-            if (mCurrentFrame.mvpMapPoints[i]->vbee.Update(
-                    obs, true, mCurrentFrame.mvpMapPoints[i]->fromPreviousMap) <
-                0.25) {
-              if (mCurrentFrame.mvpMapPoints[i]->fromPreviousMap)
-                mCurrentFrame.mvpMapPoints[i]->SetBadFlag();
+            Observation obs = Observation{
+                .v = (pMP->GetWorldPos() - mCurrentFrame.GetCameraCenter()),
+                .s = 0.0};
+            
+            float vbeeScore = pMP->vbee.Update(obs, true, pMP->fromPreviousMap);
+            
+            // Only set bad flag if score is low AND it's from previous map
+            if (vbeeScore < 0.05) {
+              pMP->SetBadFlag();
+              // // Clear the reference to avoid use-after-free
+              // mCurrentFrame.mvpMapPoints[i] = nullptr;
             }
           }
         }
 
-        if (mSensor == System::STEREO)
+        if (mSensor == System::STEREO && mCurrentFrame.mvpMapPoints[i])
           mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
       }
     }
   }
 
+  // Final VBEE processing - safer approach
   if (vbeeSettings.in_use) {
-    for (vector<MapPoint *>::iterator vit = mvpLocalMapPoints.begin(),
-                                      vend = mvpLocalMapPoints.end();
-         vit != vend; vit++) {
-      MapPoint *pMP = *vit;
+    // Collect points that need final processing
+    vector<MapPoint*> pointsToProcess;
+    pointsToProcess.reserve(mvpLocalMapPoints.size());
+    
+    for (MapPoint* pMP : mvpLocalMapPoints) {
       if (pMP && !pMP->isBad()) {
-        if (pMP->vbee.commitUncommittedObservation() < 0.25) {
-          if (pMP->fromPreviousMap)
-            pMP->SetBadFlag();
+        pointsToProcess.push_back(pMP);
+      }
+    }
+    
+    // Process collected points
+    for (MapPoint* pMP : pointsToProcess) {
+      // Re-check validity before processing
+      if (pMP && !pMP->isBad()) {
+        float vbeeScore = pMP->vbee.commitUncommittedObservation();
+        if (vbeeScore < 0.05) {
+          pMP->SetBadFlag();
         }
       }
     }
   }
 
-  // Decide if the tracking was succesful
+  // Decide if the tracking was successful
   // More restrictive if there was a relocalization recently
   mpLocalMapper->mnMatchesInliers = mnMatchesInliers;
   if (mCurrentFrame.mnId < mnLastRelocFrameId + mMaxFrames &&

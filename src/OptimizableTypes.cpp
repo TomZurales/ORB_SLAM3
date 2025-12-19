@@ -149,7 +149,7 @@ void EdgeSE3ProjectXYZ::linearizeOplus() {
   double y = xyz_trans[1];
   double z = xyz_trans[2];
 
-  auto projectJac = -pCamera->projectJac(xyz_trans);
+  auto projectJac = (-pCamera->projectJac(xyz_trans)).eval();
 
   _jacobianOplusXi = projectJac * T.rotation().toRotationMatrix();
 

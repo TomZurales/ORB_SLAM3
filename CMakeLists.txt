@@ -9,8 +9,8 @@ add_compile_definitions(TCZ_THESIS)
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -fsanitize=address -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -fsanitize=address -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 
@@ -143,6 +143,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/VBEE)
 
 add_executable(vbee_test_single_point Examples/VBEE/test_single_point.cc)
 target_link_libraries(vbee_test_single_point PRIVATE vbee)
+
+add_executable(vbee_test_random_accuracy Examples/VBEE/test_random_accuracy.cc)
+target_compile_options(vbee_test_random_accuracy PRIVATE -O3 -DCMAKE_BUILD_TYPE=Release)
+target_link_libraries(vbee_test_random_accuracy PRIVATE vbee -lboost_serialization)
+
+add_executable(vbee_analyze_random_accuracy Examples/VBEE/analyze_random_accuracy.cc)
+target_compile_options(vbee_analyze_random_accuracy PRIVATE -O3 -DCMAKE_BUILD_TYPE=Release)
+target_link_libraries(vbee_analyze_random_accuracy PRIVATE vbee -lboost_serialization)
 
 # # #Stereo examples
 # set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/VBEEResults)

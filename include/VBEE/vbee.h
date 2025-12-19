@@ -51,6 +51,8 @@ public:
 
   void PrintSettings() const;
 
+  float GetObservability() const { return observability; }
+
   float GetPSeenGivenExists(Viewpoint v);
 
   float commitUncommittedObservation() {

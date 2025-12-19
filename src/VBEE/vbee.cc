@@ -2,6 +2,9 @@
 
 #include <iostream>
 
+#define OBSERVABILITY_MIN 0.001f
+#define OBSERVABILITY_MAX 0.75f
+
 VBEE::VBEE(VBEEParams params, ObservabilityModelParams obsParams, int mpID)
     : params(params), model(obsParams), epe(), p_e(params.init_p_e),
       observability(params.init_observability), mpID(mpID), in_use(true) {}
@@ -10,21 +13,22 @@ VBEE::VBEE(int mpID) : mpID(mpID) {
 
   params = VBEEParams{.model = "KNN",
                       .init_p_e = 0.9f,
-                      .damping_coeff = 0.4f,
+                      .damping_coeff = 0.75f,
                       .init_observability = 0.5f,
                       .observability_damping_coeff = 0.02f};
 
   model = ObservabilityModel(ObservabilityModelParams{
-      .k = 10, .n = 500, .angle_threshold = 0.5f, .feedback_threshold = 0.05f});
+      .k = 10, .n = 500, .angle_threshold = 1.0f, .feedback_threshold = 0.05f});
 
   epe = ExistenceProbabilityEstimator();
   p_e = params.init_p_e;
   observability = params.init_observability;
 };
 inline double Sigmoid(double x, double k = 0.10) {
-  constexpr double x0 = 200.0;
+  constexpr double x0 = 150.0;
   return 1.0 / (1.0 + std::exp(-k * (x - x0)));
 }
+
 float VBEE::Update(Observation observation, bool commit, bool updatePExists) {
   if (!in_use)
     return 1.0f;
@@ -58,21 +62,26 @@ float VBEE::Update(Observation observation, bool commit, bool updatePExists) {
 
   float weight =
       (1.0f - observability) * params.damping_coeff * Sigmoid(n_observations);
-  float tmp_p_e = std::min(
+  // float tmp_p_e = std::min(
+  //     0.999f, std::max(0.001f, prior * (1.0f - weight) + posterior * weight));
+  p_e = std::min(
       0.999f, std::max(0.001f, prior * (1.0f - weight) + posterior * weight));
+  // if (updatePExists)
+  //   p_e = tmp_p_e;
 
-  if (updatePExists)
-    p_e = tmp_p_e;
+  float feedback = p_e - prior;
+  observability = model.Update(observation, feedback);
 
-  float feedback = tmp_p_e - prior;
-  model.Update(observation, feedback);
+  // float obs_damping_coeff = params.observability_damping_coeff;
+  // // Use s as the observation value
+  // // If the estimated observability is higher than the actual, then our observability should decrease.
+  // // If the estimated observability is lower than the actual, then our observability should increase.
+  // // Minimum observability is set to 0.25 to prevent low observability from preventing any updates.
 
-  float obs_damping_coeff = params.observability_damping_coeff;
-  // Use s as the observation value
-  observability = std::min(
-      0.75f,
-      std::max(0.25f, observability - obs_damping_coeff *
-                                          (observation.s - model_estimate)));
+  // float error = observation.s - model_estimate; // Positive if we underestimated observability, negative if overestimated
+  // observability = std::min(
+  //     OBSERVABILITY_MAX,
+  //     std::max(OBSERVABILITY_MIN, observability + (obs_damping_coeff * error)));
 
   return p_e;
 }
@@ -105,7 +114,7 @@ void VBEE::Merge(VBEE &other) {
 
   // Merge observability
   float avg_observability = std::min(
-      0.75f, std::max(0.25f, (observability + other.observability) / 2.0f));
+      OBSERVABILITY_MAX, std::max(OBSERVABILITY_MIN, (observability + other.observability) / 2.0f));
 
   for (auto observation : other.model.prev_observations) {
     this->Update(observation, true); // No feedback for merging
@@ -119,10 +128,6 @@ void VBEE::Merge(VBEE &other) {
 
 void VBEE::Reset() {
   p_e = params.init_p_e;
-  // observability = params.init_observability;
-
-  // model = ObservabilityModel(model);
-  // epe = ExistenceProbabilityEstimator();
 }
 
 void VBEE::PrintSettings() const {

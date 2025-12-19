@@ -4,6 +4,8 @@
 #include "viewpoint.h"
 #include <boost/serialization/serialization.hpp>
 #include <vector>
+#include <mutex>
+#include <memory>
 
 typedef struct {
   int k;
@@ -21,16 +23,21 @@ class ObservabilityModel {
   }
 
 public:
-  ObservabilityModel() = default;
-  ObservabilityModel(ObservabilityModelParams params) : params(params){};
+  ObservabilityModel() : mtx_prev_observations(std::make_shared<std::mutex>()) {};
+  ObservabilityModel(ObservabilityModelParams params) : params(params), mtx_prev_observations(std::make_shared<std::mutex>()) {};
   ~ObservabilityModel() = default;
 
   float Estimate(const Viewpoint &viewpoint);
 
-  void Update(const Observation &observation, float feedback);
+  float Update(const Observation &observation, float feedback);
+
+  std::shared_ptr<std::mutex> mtx_prev_observations;
 
 private:
   ObservabilityModelParams params;
+  float updatePositiveObservationRatio();
+  float past_positive_observation_ratio = 0.5f;
+  float last_estimate = 0.5f;
 
 protected:
   std::vector<Observation> prev_observations;
