@@ -7,7 +7,7 @@ ENDIF()
 
 add_compile_definitions(TCZ_THESIS)
 
-MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
+MESSAGE("Build type: " Release)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wno-unused-but-set-variable -Wno-unused-variable -Wno-reorder -Wno-sign-compare -Wno-deprecated-declarations -Wno-conversion-null")
@@ -37,6 +37,8 @@ if(NOT OpenCV_FOUND)
   message(FATAL_ERROR "OpenCV > 4.4 not found.")
 endif()
 
+add_compile_definitions(REGISTER_TIMES)
+
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 
@@ -57,6 +59,7 @@ add_library(vbee SHARED
    src/VBEE/existence_probability_estimator.cc
 )
 target_include_directories(vbee PRIVATE include)
+target_compile_options(vbee PRIVATE -O3 -DCMAKE_BUILD_TYPE=Release)
 
 add_library(${PROJECT_NAME} SHARED
 src/System.cc
@@ -147,10 +150,6 @@ target_link_libraries(vbee_test_single_point PRIVATE vbee)
 add_executable(vbee_test_random_accuracy Examples/VBEE/test_random_accuracy.cc)
 target_compile_options(vbee_test_random_accuracy PRIVATE -O3 -DCMAKE_BUILD_TYPE=Release)
 target_link_libraries(vbee_test_random_accuracy PRIVATE vbee -lboost_serialization)
-
-add_executable(vbee_analyze_random_accuracy Examples/VBEE/analyze_random_accuracy.cc)
-target_compile_options(vbee_analyze_random_accuracy PRIVATE -O3 -DCMAKE_BUILD_TYPE=Release)
-target_link_libraries(vbee_analyze_random_accuracy PRIVATE vbee -lboost_serialization)
 
 # # #Stereo examples
 # set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/VBEEResults)

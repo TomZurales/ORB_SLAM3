@@ -209,6 +209,10 @@ public:
   VBEE vbee;
   bool fromPreviousMap;
   bool isInCameraView = false;
+  bool vbeeSeen = false;
+  bool fakeBad = false;
+  bool countedForStats = false;
+  void SetFakeBadFlag() { fakeBad = true; }
 
 protected:
   // Position in absolute coordinates

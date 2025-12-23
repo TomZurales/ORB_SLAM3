@@ -23,6 +23,7 @@
 #include "KeyFrame.h"
 #include "MapPoint.h"
 #include "VBEE/viewpoint.h"
+#include <epoxy/gl_generated.h>
 #include <mutex>
 #include <pangolin/pangolin.h>
 
@@ -123,6 +124,75 @@ bool MapDrawer::ParseViewerParamFile(cv::FileStorage &fSettings) {
   return !b_miss_params;
 }
 
+// Color based on Is In Frame
+// void MapDrawer::DrawMapPoints() {
+//   Map *pActiveMap = mpAtlas->GetCurrentMap();
+//   if (!pActiveMap)
+//     return;
+
+//   const vector<MapPoint *> &vpMPs = pActiveMap->GetAllMapPoints();
+//   const vector<MapPoint *> &vpRefMPs = pActiveMap->GetReferenceMapPoints();
+
+//   set<MapPoint *> spRefMPs(vpRefMPs.begin(), vpRefMPs.end());
+
+//   if (vpMPs.empty())
+//     return;
+
+//   Eigen::Vector3f cameraPosition = mCameraPose.translation();
+//   Viewpoint cameraViewpoint = Viewpoint(cameraPosition);
+
+//   glPointSize(mPointSize);
+//   glBegin(GL_POINTS);
+//   // glColor3f(0.0,0.0,0.0);
+
+//   for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+//     if (vpMPs[i]->isInCameraView) {
+//       if(vpMPs[i]->vbeeSeen)
+//         glColor3f(0.0, 1.0, 0.0); // Green for seen points
+//       else
+//         glColor3f(1.0, 0.0, 0.0); // Red for not seen points
+//     } else {
+//       glColor3f(0.6, 0.6, 0.6);
+//     }
+//     vpMPs[i]->isInCameraView = false;
+//     if (vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
+//       continue;
+//     Eigen::Matrix<float, 3, 1> pos = vpMPs[i]->GetWorldPos();
+//     // glColor3f(0,vpMPs[i]->vbee.GetPSeenGivenExists(vpMPs[i]->GetWorldPos()
+//     -
+//     // cameraViewpoint),0.0);
+//     // glColor3f(1 - vpMPs[i]->vbee.Query(), vpMPs[i]->vbee.Query(), 0.0);
+//     glVertex3f(pos(0), pos(1), pos(2));
+//   }
+//   glEnd();
+
+//   glPointSize(mPointSize);
+//   glBegin(GL_POINTS);
+//   // glColor3f(1.0,0.0,0.0);
+
+//   for (set<MapPoint *>::iterator sit = spRefMPs.begin(), send =
+//   spRefMPs.end();
+//        sit != send; sit++) {
+//     if ((*sit)->isInCameraView) {
+//       if((*sit)->vbeeSeen)
+//         glColor3f(0.0, 1.0, 0.0); // Green for seen points
+//       else
+//         glColor3f(1.0, 0.0, 0.0); // Red for not seen points
+//     } else {
+//       glColor3f(0.6, 0.6, 0.6);
+//     }
+//     (*sit)->isInCameraView = false;
+//     if ((*sit)->isBad())
+//       continue;
+//     Eigen::Matrix<float, 3, 1> pos = (*sit)->GetWorldPos();
+//     // glColor3f(1 - (*sit)->vbee.Query(), (*sit)->vbee.Query(), 0.0);
+//     glVertex3f(pos(0), pos(1), pos(2));
+//   }
+
+//   glEnd();
+// }
+
+// Color based on VBEE Existence Probability
 void MapDrawer::DrawMapPoints() {
   Map *pActiveMap = mpAtlas->GetCurrentMap();
   if (!pActiveMap)
@@ -140,34 +210,43 @@ void MapDrawer::DrawMapPoints() {
   Viewpoint cameraViewpoint = Viewpoint(cameraPosition);
 
   glPointSize(mPointSize);
-  glBegin(GL_POINTS);
   // glColor3f(0.0,0.0,0.0);
 
   for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
+    vpMPs[i]->isInCameraView = false;
     if (vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
       continue;
     Eigen::Matrix<float, 3, 1> pos = vpMPs[i]->GetWorldPos();
     // glColor3f(0,vpMPs[i]->vbee.GetPSeenGivenExists(vpMPs[i]->GetWorldPos() -
     // cameraViewpoint),0.0);
-    glColor3f(1 - vpMPs[i]->vbee.Query(), vpMPs[i]->vbee.Query(), 0.0);
+    // glColor3f(1 - vpMPs[i]->vbee.Query(), vpMPs[i]->vbee.Query(), 0.0);
+    float psge = vpMPs[i]->vbee.GetPSeenGivenExists(cameraPosition - pos);
+    float p_e = vpMPs[i]->vbee.Query();
+    // glPointSize((psge * 5) + 1);
+    glBegin(GL_POINTS);
+    // glColor3f(1 - p_e, p_e, 0.0);
+    glColor3f(1 - psge, psge, 0.0);
     glVertex3f(pos(0), pos(1), pos(2));
+    glEnd();
   }
-  glEnd();
 
-  glPointSize(mPointSize);
-  glBegin(GL_POINTS);
+  // glPointSize(mPointSize);
   // glColor3f(1.0,0.0,0.0);
 
   for (set<MapPoint *>::iterator sit = spRefMPs.begin(), send = spRefMPs.end();
        sit != send; sit++) {
+    (*sit)->isInCameraView = false;
     if ((*sit)->isBad())
       continue;
     Eigen::Matrix<float, 3, 1> pos = (*sit)->GetWorldPos();
-    glColor3f(1 - (*sit)->vbee.Query(), (*sit)->vbee.Query(), 0.0);
+    float psge = (*sit)->vbee.GetPSeenGivenExists(cameraPosition - pos);
+    float p_e = (*sit)->vbee.Query();
+    // glPointSize((psge * 5) + 1);
+    glBegin(GL_POINTS);
+    glColor3f(1 - psge, psge, 0.0);
     glVertex3f(pos(0), pos(1), pos(2));
+    glEnd();
   }
-
-  glEnd();
 }
 
 void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph,

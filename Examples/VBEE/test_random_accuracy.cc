@@ -23,6 +23,8 @@
 #define MAX_ITERS 2000
 #define MAX_VIEWPOINTS 100000
 
+VBEESettings global_vbee_settings;
+
 // Serialization support for Eigen::Vector3f
 namespace boost {
 namespace serialization {
@@ -246,6 +248,7 @@ public:
   }
 
   void deletePoint() { pointDeleted = true; }
+  bool isPointDeleted() const { return pointDeleted; }
 
   void restorePoint() { pointDeleted = false; }
 
@@ -259,7 +262,7 @@ public:
         return false;
       }
       if (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) <
-          FALSE_POSITIVE_RATE) {
+          global_vbee_settings.falsePositiveRate) {
         return true;
       }
       return false;
@@ -271,7 +274,7 @@ public:
           return false;
         }
         if (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) <
-            FALSE_POSITIVE_RATE) {
+            global_vbee_settings.falsePositiveRate) {
           return true;
         }
         return false;
@@ -281,7 +284,7 @@ public:
       return true;
     }
     if (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) <
-        FALSE_NEGATIVE_RATE) {
+        global_vbee_settings.falseNegativeRate) {
       return false;
     }
     return true;
@@ -313,7 +316,58 @@ public:
   }
 };
 
+class StableChecker {
+  int window_size;
+  std::vector<float> values;
+public:
+  StableChecker(int window_size = 20) : window_size(window_size) {}
+
+  bool addValue(float value) {
+    values.push_back(value);
+    if (values.size() > window_size) {
+      values.erase(values.begin());
+    }
+    if (values.size() < window_size) {
+      return false;
+    }
+    float mean = 0.0f;
+    for (const auto &v : values) {
+      mean += v;
+    }
+    mean /= static_cast<float>(values.size());
+    float variance = 0.0f;
+    for (const auto &v : values) {
+      variance += (v - mean) * (v - mean);
+    }
+    variance /= static_cast<float>(values.size());
+    return variance < 0.001f;
+  }
+};
 int main(int argc, char **argv) {
+  if(argc != 1 && argc != 15) {
+    std::cout << "Usage: vbee_test_random_accuracy bad_threshold init_pe damping_coeff init_observability observability_damping_coeff k n angle_threshold feedback_threshold sigmoid_steepness sigmoid_midpoint falseNegativeRate falsePositiveRate output_filename" << std::endl;
+    return -1;
+  }
+
+  if(argc == 15) {
+    global_vbee_settings.in_use = true;
+    global_vbee_settings.weight_ransac = true;
+    global_vbee_settings.bad_threshold = std::stof(argv[1]);
+    global_vbee_settings.init_p_e = std::stof(argv[2]);
+    global_vbee_settings.damping_coeff = std::stof(argv[3]);
+    global_vbee_settings.init_observability = std::stof(argv[4]);
+    global_vbee_settings.observability_damping_coeff = std::stof(argv[5]);
+    global_vbee_settings.k = std::stoi(argv[6]);
+    global_vbee_settings.n = std::stoi(argv[7]);
+    global_vbee_settings.angle_threshold = std::stof(argv[8]);
+    global_vbee_settings.feedback_threshold = std::stof(argv[9]);
+    global_vbee_settings.sigmoid_steepness = std::stod(argv[10]);
+    global_vbee_settings.sigmoid_midpoint = std::stod(argv[11]);
+    global_vbee_settings.falseNegativeRate = std::stof(argv[12]);
+    global_vbee_settings.falsePositiveRate = std::stof(argv[13]);
+  }
+
+  std::string output_filename(argv[14]);
   // Check if worlds.bin exists and load it
   std::vector<World> worlds;
   std::set<std::pair<float, float>> existing_rate_pairs;
@@ -340,6 +394,167 @@ int main(int argc, char **argv) {
       std::cout << "Generating new worlds instead..." << std::endl;
     }
   }
+
+  std::vector<std::thread> test_threads;
+
+  // Create output file and mutex for thread-safe writing
+  std::ofstream data_file(output_filename);
+  // Write CSV header
+
+  // Store model estimation errors
+  std::mutex psge_errors_mutex;
+  std::vector<float> psge_errors(worlds.size(), -1.0f);
+
+  std::mutex p_e_errors_mutex;
+  std::vector<float> p_e_errors(worlds.size(), -1.0f);
+
+  std::mutex obs_stab_mutex;
+  std::vector<int> obs_stab_times(worlds.size(), 10000);
+
+  std::mutex delete_time_mutex;
+  std::vector<int> delete_times(worlds.size(), 10000);
+
+  for (size_t world_idx = 0; world_idx < worlds.size(); ++world_idx) {
+    test_threads.emplace_back([world = worlds[world_idx], world_idx,&psge_errors_mutex, &p_e_errors_mutex, &psge_errors, &p_e_errors, &obs_stab_mutex, &obs_stab_times, &delete_time_mutex, &delete_times]() mutable {
+      VBEE vbee(0);
+      float p_e_error = 0.0f;
+      float psge_error = 0.0f;
+
+      int observability_stab_time = -1;
+      bool observability_stable = false;
+      StableChecker observability_sc(50);
+
+      int delete_time = 5000;
+      bool is_deleted = false;
+
+      for(int i = 0; i < 10000; i++) {
+        Eigen::Vector3f viewpoint = world.getRandomValidViewpoint();
+        bool seen = world.isSeen(viewpoint);
+        vbee.Update(viewpoint, seen);
+
+        float p_exists = vbee.Query();
+        float p_seen_given_exists = vbee.GetPSeenGivenExists(viewpoint);
+        float observability = vbee.GetObservability();
+
+        if(!observability_stable && observability_sc.addValue(observability)) {
+          observability_stable = true;
+          observability_stab_time = i;
+        }
+
+        p_e_error += std::abs(p_exists - (world.isPointDeleted() ? 0.0f : 1.0f));
+        psge_error += std::abs(p_seen_given_exists - (seen ? 1.0f : 0.0f));
+
+        if(i == 10000 / 2) {
+          world.deletePoint();
+        }
+
+        if(!is_deleted && p_exists < global_vbee_settings.bad_threshold) {
+          is_deleted = true;
+          delete_time = i - (10000 / 2);
+          if(delete_time < 0) {
+            delete_time = (10000 / 2);
+          }
+        }
+      }
+      {
+        std::lock_guard<std::mutex> lock(psge_errors_mutex);
+        psge_errors[world_idx] = psge_error / 10000.0f;
+      }
+      {
+        std::lock_guard<std::mutex> lock(p_e_errors_mutex);
+        p_e_errors[world_idx] = p_e_error / 10000.0f;
+      }
+      {
+        std::lock_guard<std::mutex> lock(obs_stab_mutex);
+        obs_stab_times[world_idx] = observability_stab_time;
+      }
+      {
+        std::lock_guard<std::mutex> lock(delete_time_mutex);
+        delete_times[world_idx] = delete_time;
+      }
+    });
+  }
+
+  for (auto &thread : test_threads) {
+    thread.join();
+  }
+
+  float avg_p_e_error = 0.0f;
+  for (const auto& error : p_e_errors) {
+    avg_p_e_error += error;
+  }
+  avg_p_e_error /= static_cast<float>(p_e_errors.size());
+  std::cout << "Average P(E) error: " << avg_p_e_error << std::endl;
+
+  float avg_psge_error = 0.0f;
+  for (const auto& error : psge_errors) {
+    avg_psge_error += error;
+  }
+  avg_psge_error /= static_cast<float>(psge_errors.size());
+  std::cout << "Average P(S|E) error: " << avg_psge_error << std::endl;
+  float avg_obs_stab_time = 0.0f;
+  for (const auto& time : obs_stab_times) {
+    avg_obs_stab_time += static_cast<float>(time); 
+  }
+
+  avg_obs_stab_time /= static_cast<float>(obs_stab_times.size());
+  std::cout << "Average Observability Stabilization Time: " << avg_obs_stab_time << std::endl;
+
+  float avg_delete_time = 0.0f;
+  for (const auto& time : delete_times) {
+    avg_delete_time += static_cast<float>(time);
+  }
+  avg_delete_time /= static_cast<float>(delete_times.size());
+  std::cout << "Average Delete Time: " << avg_delete_time << std::endl;
+
+  data_file << avg_p_e_error << ","
+            << avg_psge_error << ","
+            << avg_obs_stab_time << ","
+            << avg_delete_time << "\n";
+  data_file.close();
+  return 0;
+}
+      // for (int i = 0; i < 5000; i++) {
+      //   Eigen::Vector3f viewpoint = world.getRandomValidViewpoint();
+      //   bool seen = world.isSeen(viewpoint);
+      //   vbee.Update(viewpoint, seen);
+
+      //   float p_exists = vbee.Query();
+      //   float p_seen_given_exists = vbee.GetPSeenGivenExists(viewpoint);
+      //   float observability = vbee.GetObservability();
+
+      //   if(!observability_stable && observability_sc.addValue(observability)) {
+      //     observability_stable = true;
+      //     observability_stab_time = i;
+      //   }
+
+      //   {
+      //     std::lock_guard<std::mutex> lock(file_mutex);
+      //     data_file << world_idx << "," << i
+      //               << ","
+      //               // << viewpoint.x() << ","
+      //               // << viewpoint.y() << ","
+      //               // << viewpoint.z() << ","
+      //               // << (seen ? 1 : 0) << ","
+      //               << p_exists << "," << p_seen_given_exists << "," << observability << "\n";
+      //   }
+      // }
+      // world.deletePoint();
+      // for (int i = 0; i < 5000; i++) {
+      //   Eigen::Vector3f viewpoint = world.getRandomValidViewpoint();
+      //   bool seen = world.isSeen(viewpoint);
+      //   vbee.Update(viewpoint, seen);
+
+      //   float p_exists = vbee.Query();
+      //   float p_seen_given_exists = vbee.GetPSeenGivenExists(viewpoint);
+      //   float observability = vbee.GetObservability();
+      //   {
+      //     std::lock_guard<std::mutex> lock(file_mutex);
+      //     data_file << world_idx << "," << 5000 + i
+      //               << ","
+      //               << p_exists << "," << p_seen_given_exists << "," << observability << "\n";
+      //   }
+      // }
 
   //   // Pass any string to the program to generate worlds
   //   if (argc == 2) {
@@ -411,87 +626,3 @@ int main(int argc, char **argv) {
   //       std::cerr << "Error saving worlds: " << e.what() << std::endl;
   //     }
   //   }
-
-  std::vector<std::thread> test_threads;
-
-  // Create output file and mutex for thread-safe writing
-  std::ofstream data_file("data.csv");
-  std::mutex file_mutex;
-
-  // Write CSV header
-  data_file << "world_idx,iteration,p_exists,observability\n";
-
-  for (size_t world_idx = 0; world_idx < worlds.size(); ++world_idx) {
-    test_threads.emplace_back([world = worlds[world_idx], world_idx, &data_file,
-                               &file_mutex]() mutable {
-      VBEE vbee(0);
-      for (int i = 0; i < 5000; i++) {
-        Eigen::Vector3f viewpoint = world.getRandomValidViewpoint();
-        bool seen = world.isSeen(viewpoint);
-        vbee.Update(viewpoint, seen);
-
-        float p_exists = vbee.Query();
-        float p_seen_given_exists = vbee.GetPSeenGivenExists(viewpoint);
-        float observability = vbee.GetObservability();
-
-        // std::cout << "World Test - Camera position: (" << viewpoint.x() << ",
-        // "
-        //           << viewpoint.y() << ", " << viewpoint.z() << ")" <<
-        //           std::endl;
-        // std::cout << "Seen? " << (seen ? "Yes" : "No") << std::endl;
-        // std::cout << "Estimated pExists: " << p_exists << std::endl;
-        // std::cout << "Observability Estimate: " << p_seen_given_exists <<
-        // std::endl; std::cout << "Observability: " << observability <<
-        // std::endl;
-
-        // Thread-safe write to CSV file
-        {
-          std::lock_guard<std::mutex> lock(file_mutex);
-          data_file << world_idx << "," << i
-                    << ","
-                    // << viewpoint.x() << ","
-                    // << viewpoint.y() << ","
-                    // << viewpoint.z() << ","
-                    // << (seen ? 1 : 0) << ","
-                    << p_exists << "," << observability << "\n";
-        }
-      }
-      world.deletePoint();
-      for (int i = 0; i < 5000; i++) {
-        Eigen::Vector3f viewpoint = world.getRandomValidViewpoint();
-        bool seen = world.isSeen(viewpoint);
-        vbee.Update(viewpoint, seen);
-
-        float p_exists = vbee.Query();
-        float p_seen_given_exists = vbee.GetPSeenGivenExists(viewpoint);
-        float observability = vbee.GetObservability();
-
-        // std::cout << "World Test - Camera position: (" << viewpoint.x() << ",
-        // "
-        //           << viewpoint.y() << ", " << viewpoint.z() << ")" <<
-        //           std::endl;
-        // std::cout << "Seen? " << (seen ? "Yes" : "No") << std::endl;
-        // std::cout << "Estimated pExists: " << p_exists << std::endl;
-        // std::cout << "Observability Estimate: " << p_seen_given_exists <<
-        // std::endl; std::cout << "Observability: " << observability <<
-        // std::endl;
-
-        // Thread-safe write to CSV file
-        {
-          std::lock_guard<std::mutex> lock(file_mutex);
-          data_file << world_idx << "," << 5000 + i
-                    << ","
-                    // << viewpoint.x() << ","
-                    // << viewpoint.y() << ","
-                    // << viewpoint.z() << ","
-                    // << (seen ? 1 : 0) << ","
-                    << p_exists << "," << observability << "\n";
-        }
-      }
-    });
-  }
-
-  for (auto &thread : test_threads) {
-    thread.join();
-  }
-}

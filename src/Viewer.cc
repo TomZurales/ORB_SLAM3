@@ -26,7 +26,7 @@
 #include <mutex>
 #include <sstream>
 
-extern VBEESettings vbeeSettings;
+extern VBEESettings global_vbee_settings;
 
 namespace ORB_SLAM3 {
 
@@ -159,9 +159,9 @@ void Viewer::Run() {
 
   std::stringstream ss;
   ss << "ORB-SLAM3: Map Viewer";
-  if (vbeeSettings.in_use) {
+  if (global_vbee_settings.in_use) {
     ss << " VBEE";
-    if (vbeeSettings.weight_ransac)
+    if (global_vbee_settings.weight_ransac)
       ss << " RANSAC";
   }
 
@@ -192,8 +192,8 @@ void Viewer::Run() {
   pangolin::Var<bool> menuStepByStep("menu.Step By Step", false,
                                      true); // false, true
   pangolin::Var<bool> menuStep("menu.Step", false, false);
-  pangolin::Var<bool> menuVBEE("menu.VBEE", vbeeSettings.in_use, true);
-  pangolin::Var<bool> menuRANSAC("menu.RANSAC", vbeeSettings.weight_ransac,
+  pangolin::Var<bool> menuVBEE("menu.VBEE", global_vbee_settings.in_use, true);
+  pangolin::Var<bool> menuRANSAC("menu.RANSAC", global_vbee_settings.weight_ransac,
                                  true);
 
   pangolin::Var<bool> menuShowOptLba("menu.Show LBA opt", false, true);
@@ -217,9 +217,9 @@ void Viewer::Run() {
 
   std::stringstream ss2;
   ss2 << "ORB-SLAM3: Current Frame";
-  if (vbeeSettings.in_use) {
+  if (global_vbee_settings.in_use) {
     ss2 << " VBEE";
-    if (vbeeSettings.weight_ransac)
+    if (global_vbee_settings.weight_ransac)
       ss2 << " RANSAC";
   }
 

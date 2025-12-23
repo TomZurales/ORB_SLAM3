@@ -1,8 +1,11 @@
 #include "VBEE/existence_probability_estimator.h"
+#include "VBEE/vbee.h"
+
+extern VBEESettings global_vbee_settings;
 
 ExistenceProbabilityEstimator::ExistenceProbabilityEstimator() {
-  fn = 0.1;
-  fp = 0.0001;
+  fn = global_vbee_settings.falseNegativeRate; //0.1;
+  fp = global_vbee_settings.falsePositiveRate; //0.0001;
 }
 
 float ExistenceProbabilityEstimator::Update(Observation o, float prior,

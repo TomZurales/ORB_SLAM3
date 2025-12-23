@@ -21,6 +21,7 @@
 
 #include "System.h"
 #include "MapPoint.h"
+#include "VBEE/TrackedStats.h"
 #include "VBEE/observation.h"
 #include <algorithm>
 #include <boost/archive/binary_iarchive.hpp>
@@ -31,13 +32,15 @@
 #include <boost/archive/xml_oarchive.hpp>
 #include <boost/serialization/base_object.hpp>
 #include <boost/serialization/string.hpp>
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <openssl/md5.h>
 #include <pangolin/pangolin.h>
 #include <thread>
 
-extern VBEESettings vbeeSettings;
+extern VBEESettings global_vbee_settings;
+extern TrackedStats global_tracked_stats;
 
 namespace ORB_SLAM3 {
 
@@ -195,7 +198,7 @@ System::System(const string &strVocFile, const string &strSettingsFile,
 
   // Initialize the Tracking thread
   //(it will live in the main thread of execution, the one that called this
-  //constructor)
+  // constructor)
   cout << "Seq. Name: " << strSequence << endl;
   mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
                            mpAtlas, mpKeyFrameDatabase, strSettingsFile,
@@ -258,6 +261,8 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
                                  const double &timestamp,
                                  const vector<IMU::Point> &vImuMeas,
                                  string filename) {
+  std::chrono::steady_clock::time_point t_start =
+      std::chrono::steady_clock::now();
   if (mSensor != STEREO && mSensor != IMU_STEREO) {
     cerr << "ERROR: you called TrackStereo but input sensor was not set to "
             "Stereo nor Stereo-Inertial."
@@ -326,11 +331,60 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
 
   // std::cout << "out grabber" << std::endl;
 
-  unique_lock<mutex> lock2(mMutexState);
-  mTrackingState = mpTracker->mState;
-  mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
-  mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
+  // unique_lock<mutex> lock2(mMutexState);
+  // mTrackingState = mpTracker->mState;
+  // mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
+  // mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
 
+  std::chrono::steady_clock::time_point t_end =
+      std::chrono::steady_clock::now();
+
+  if (global_vbee_settings.in_use) {
+    std::set<MapPoint *> currentMapPoints;
+    for (MapPoint *pMP : mpTracker->mCurrentFrame.mvpMapPoints) {
+      if (pMP) {
+        currentMapPoints.insert(pMP);
+        Observation obs =
+            Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() - pMP->GetWorldPos() ),
+                        .s = 1.0};
+        pMP->vbee.Update(obs, true);
+        pMP->isInCameraView = true;
+        pMP->vbeeSeen = true;
+      }
+    }
+
+    // Project all map points into the current frame's view to determine if they
+    // "should" be seen
+    auto all_map_points = mpAtlas->GetCurrentMap()->GetAllMapPoints();
+    for (int i = 0; i < all_map_points.size(); i++) {
+      MapPoint *pMP = all_map_points[i];
+      if (!pMP) {
+        continue;
+      }
+      if (pMP->isBad()) {
+        continue;
+      }
+      if (currentMapPoints.count(pMP) > 0) {
+        continue;
+      }
+
+      if (mpTracker->mCurrentFrame.isInFrustum(pMP, 0.5)) {
+        Observation obs =
+            Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() - pMP->GetWorldPos() ),
+                        .s = 0.0};
+        float new_pExists = pMP->vbee.Update(obs, true);
+        if(new_pExists < global_vbee_settings.bad_threshold) {
+          global_tracked_stats.AddElimination(pMP->mnId);
+          pMP->SetBadFlag();
+        }
+        pMP->isInCameraView = true;
+        pMP->vbeeSeen = false;
+      }
+    }
+  }
+
+  std::chrono::duration<double> time_used = t_end - t_start;
+  global_tracked_stats.AddTrackTime(time_used.count());
   return Tcw;
 }
 

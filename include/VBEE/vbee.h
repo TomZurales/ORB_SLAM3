@@ -74,6 +74,7 @@ private:
   bool beenSeen = false;
 
   ObservabilityModel model;
+  ObservabilityModel model_dyn;
   ExistenceProbabilityEstimator epe;
 
   float p_e;
@@ -90,9 +91,60 @@ private:
   bool in_use = true;
   bool weight_ransac = true; // Whether to use VBEE for RANSAC weighting
   int n_observations = 0;
+
+  Viewpoint last_observer_position;
+
+  std::vector<Observation> negative_observation_buffer;
+  float UpdateMany(std::vector<Observation> observations);
 };
 
 struct VBEESettings {
   bool in_use = false;
   bool weight_ransac = false;
+  bool fake_eliminations = true;
+  float bad_threshold = 0.3847240852794481f;
+  float init_p_e = 0.6192374475709618f;
+  float damping_coeff = 0.6527140319328085f;
+  float init_observability = 0.5556968284559984f;
+  float observability_damping_coeff = 0.21177525800247346f;
+  int k = 58;
+  int n = 219;
+  float angle_threshold = 1.5154090163903902f;
+  float feedback_threshold = 0.36685880172731006f;
+  double sigmoid_steepness = 3.9187396850862326;
+  double sigmoid_midpoint = 100.4331555052815;
+  float falseNegativeRate = 0.0642218339567518f;
+  float falsePositiveRate = 0.005;
 };
+
+// struct VBEESettings {
+//   bool in_use = false;
+//   bool weight_ransac = false;
+//   float bad_threshold = 0.05f;
+//   float init_p_e = 0.9f;
+//   float damping_coeff = 0.05f;
+//   float init_observability = 0.5f;
+//   float observability_damping_coeff = 0.02f;
+//   int k = 10;
+//   int n = 500;
+//   float angle_threshold = 1.0f;
+//   float feedback_threshold = 0.05f;
+//   double sigmoid_steepness = 0.10;
+//   double sigmoid_midpoint = 150.0;
+//   float falseNegativeRate = 0.1f;
+//   float falsePositiveRate = 0.0001f;
+// };
+
+  // bad_threshold: 0.3847240852794481
+  // init_p_e: 0.6192374475709618
+  // damping_coefficient: 0.6527140319328085
+  // init_observability: 0.5556968284559984
+  // observability_damping_coefficient: 0.21177525800247346
+  // n: 219
+  // k: 58
+  // angle_threshold: 1.5154090163903902
+  // feedback_threshold: 0.36685880172731006
+  // sigmoid_steepness: 3.9187396850862326
+  // sigmoid_midpoint: 316.4331555052815
+  // false_negative_rate: 0.2642218339567518
+  // false_positive_rate: 0.1340057182574792

@@ -31,7 +31,7 @@
 #include "Thirdparty/DBoW2/DUtils/Random.h"
 #include "VBEE/vbee.h"
 
-extern VBEESettings vbeeSettings;
+extern VBEESettings global_vbee_settings;
 
 namespace ORB_SLAM3 {
 
@@ -112,7 +112,7 @@ Sim3Solver::Sim3Solver(KeyFrame *pKF1, KeyFrame *pKF2,
       mvX3Dc2.push_back(Rcw2 * X3D2w + tcw2);
 
       vbeeWeights.push_back(
-          vbeeSettings.weight_ransac
+          global_vbee_settings.weight_ransac
               ? ((pMP1->vbee.Query(true) + pMP2->vbee.Query(true)) / 2)
               : 1.0f);
 

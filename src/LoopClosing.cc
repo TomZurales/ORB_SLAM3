@@ -26,9 +26,13 @@
 #include "ORBmatcher.h"
 #include "Optimizer.h"
 #include "Sim3Solver.h"
+#include "Tracking.h"
+#include "VBEE/TrackedStats.h"
 
 #include <mutex>
 #include <thread>
+
+extern TrackedStats global_tracked_stats;
 
 namespace ORB_SLAM3 {
 
@@ -612,6 +616,8 @@ bool LoopClosing::DetectCommonRegionsFromBoW(
   int nProjMatches = 50;
   int nProjOptMatches = 80;
 
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+
   set<KeyFrame *> spConnectedKeyFrames = mpCurrentKF->GetConnectedKeyFrames();
 
   int nNumCovisibles = 10;
@@ -916,8 +922,16 @@ bool LoopClosing::DetectCommonRegionsFromBoW(
     g2oScw = g2oBestScw;
     vpMPs = vpBestMapPoints;
     vpMatchedMPs = vpBestMatchedMapPoints;
-
-    return nNumCoincidences >= 3;
+    if (nNumCoincidences >= 3) {
+      std::chrono::steady_clock::time_point t2 =
+          std::chrono::steady_clock::now();
+      double t_loop_closure =
+          std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1)
+              .count();
+      global_tracked_stats.AddLoopClosureTime(t_loop_closure);
+      return true;
+    }
+    return false;
   } else {
     int maxStage = -1;
     int maxMatched;

@@ -26,11 +26,10 @@
 #include <opencv2/core/core.hpp>
 
 #include <System.h>
-#include <thread>
 
 #include "MapPoint.h"
-#include "Optimizer.h"
 #include "VBEE/vbee.h"
+#include "VBEE/TrackedStats.h"
 
 using namespace std;
 
@@ -38,7 +37,8 @@ void LoadImages(const string &strPathLeft, const string &strPathRight,
                 const string &strPathTimes, vector<string> &vstrImageLeft,
                 vector<string> &vstrImageRight, vector<double> &vTimeStamps);
 
-VBEESettings vbeeSettings;
+VBEESettings global_vbee_settings;
+TrackedStats global_tracked_stats;
 
 int main(int argc, char **argv) {
   if (argc != 6 && argc != 7 && argc != 8) {
@@ -64,11 +64,11 @@ int main(int argc, char **argv) {
   bool vbee_ransac = argc == 8;
 
   if (use_vbee) {
-    vbeeSettings.in_use = true;
+    global_vbee_settings.in_use = true;
     std::cout << "Using VBEE" << std::endl;
   }
   if (vbee_ransac) {
-    vbeeSettings.weight_ransac = true;
+    global_vbee_settings.weight_ransac = true;
     std::cout << "Using RANSAC" << std::endl;
   }
   // Load all sequences:
@@ -258,6 +258,7 @@ int main(int argc, char **argv) {
     const string f_file = string(argv[5]) + "_Frame.txt";
     SLAM.SaveTrajectoryEuRoC(f_file);
     SLAM.SaveKeyFrameTrajectoryEuRoC(kf_file);
+    global_tracked_stats.writeToFile(string(argv[5]) + "_TrackedStats.csv");
   } else {
     SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
     SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");

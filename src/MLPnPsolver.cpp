@@ -54,7 +54,7 @@
 
 #include <Eigen/Sparse>
 
-extern VBEESettings vbeeSettings;
+extern VBEESettings global_vbee_settings;
 
 namespace ORB_SLAM3 {
 MLPnPsolver::MLPnPsolver(const Frame &F,
@@ -82,7 +82,7 @@ MLPnPsolver::MLPnPsolver(const Frame &F,
 
         mvP2D.push_back(kp.pt);
         mvSigma2.push_back(F.mvLevelSigma2[kp.octave]);
-        vbeeWeights.push_back(vbeeSettings.weight_ransac ? pMP->vbee.Query(true)
+        vbeeWeights.push_back(global_vbee_settings.weight_ransac ? pMP->vbee.Query(true)
                                                          : 1.0f);
 
         // Bearing vector should be normalized

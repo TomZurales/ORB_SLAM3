@@ -3,6 +3,8 @@
 #include <iostream>
 #include <thread>
 
+VBEESettings global_vbee_settings;
+
 int main(int argc, char **argv) {
   float camera_x = 10;
   float camera_y = 0;
