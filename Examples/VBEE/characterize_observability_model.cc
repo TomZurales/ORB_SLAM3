@@ -1,14 +1,20 @@
+// Project headers
 #include "VBEE/observability_model.h"
 #include "VBEE/observation.h"
 #include "VBEE/vbee.h"
 #include "stable_checker.h"
 #include "world.h"
+
+// Boost serialization
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
+
+// Standard library
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -33,32 +39,44 @@ void serialize(Archive &ar, Eigen::Vector3f &v, const unsigned int version) {
 
 std::map<std::string, std::vector<Observation>> observation_cache;
 
-std::pair<float, float> estimateModelError(World w, ObservabilityModel model) {
+/**
+ * Calculate the average error and confidence for a given world and model
+ * Returns pair of (average_error, average_confidence)
+ */
+std::pair<float, float> estimateModelError(World world, ObservabilityModel model) {
   float total_error = 0.0f;
   float total_confidence = 0.0f;
+  
+  const std::string world_name = world.getName();
+  const auto& observations = observation_cache[world_name];
+  const float num_observations = static_cast<float>(observations.size());
 
-  std::mutex data_mutex;
-  for (auto &observation : observation_cache[w.getName()]) {
+  for (const auto& observation : observations) {
     auto estimate = model.Estimate(observation.v);
     float error = std::abs(estimate.first - observation.s);
     total_error += error;
     total_confidence += estimate.second;
   }
-  return std::make_pair(
-      total_error / static_cast<float>(observation_cache[w.getName()].size()),
-      total_confidence /
-          static_cast<float>(observation_cache[w.getName()].size()));
+  
+  return std::make_pair(total_error / num_observations, 
+                       total_confidence / num_observations);
 }
 
+constexpr int EXPECTED_ARGC_WITH_PARAMS = 9;
+constexpr int POST_STABILIZATION_TESTS = 1000;
+constexpr int DEFAULT_STABILIZATION_FAILURE_TIME = 2000;
+constexpr int MAX_STABILIZATION_FAILURE_TIME = 10000;
+
 int main(int argc, char **argv) {
-  if (argc != 1 && argc != 9) {
+  // Validate command line arguments
+  if (argc != 1 && argc != EXPECTED_ARGC_WITH_PARAMS) {
     std::cout << "Usage: characterize_observability_model <observability model "
-                 "params> output_filename"
-              << std::endl;
+                 "params> output_filename\n";
     return -1;
   }
 
-  if (argc == 9) {
+  // Parse VBEE settings from command line
+  if (argc == EXPECTED_ARGC_WITH_PARAMS) {
     global_vbee_settings.n = std::stoi(argv[1]);
     global_vbee_settings.k = std::stoi(argv[2]);
     global_vbee_settings.angle_threshold = std::stof(argv[3]);
@@ -68,24 +86,33 @@ int main(int argc, char **argv) {
     global_vbee_settings.max_error_threshold = std::stof(argv[7]);
   }
 
-  std::string output_filename(argv[8]);
-  // Check if worlds.bin exists and load it
+  // Initialize output files
+  // std::ofstream("observability_model_history.txt").close(); // Clear previous history file
+  // std::mutex history_file_mutex;
+  // std::ofstream history_file("observability_model_history.txt", std::ios::app);
+  
+  const std::string output_filename(argv[8]);
+  
+  // Initialize world data structures
   std::vector<World> worlds;
   std::set<std::pair<float, float>> existing_rate_pairs;
 
-  std::ifstream test_file("worlds.bin");
-  if (test_file.good()) {
-    test_file.close();
+  // Load existing worlds from binary file if available
+  std::ifstream worlds_file("worlds.bin");
+  if (worlds_file.good()) {
+    worlds_file.close();
     std::cout << "Loading worlds from 'worlds.bin'..." << std::endl;
+    
     try {
       std::ifstream ifs("worlds.bin", std::ios::binary);
       boost::archive::binary_iarchive ia(ifs);
       std::vector<World> loaded_worlds;
       ia >> loaded_worlds;
+      
       std::cout << "Successfully loaded " << loaded_worlds.size()
                 << " worlds from file." << std::endl;
 
-      // Use loaded worlds instead of generating new ones
+      // Store loaded worlds and track their rate pairs
       for (const auto &world : loaded_worlds) {
         worlds.push_back(world);
         existing_rate_pairs.insert(world.getRatePair());
@@ -96,31 +123,33 @@ int main(int argc, char **argv) {
     }
   }
 
-  // Check if world_observations.bin exists and load it
-  std::ifstream test_obs_file("world_observations.bin");
-  if (test_obs_file.good()) {
-    test_obs_file.close();
-    std::cout << "Loading world observations from 'world_observations.bin'..."
-              << std::endl;
+  // Load or generate world observations
+  std::ifstream observations_file("world_observations.bin");
+  if (observations_file.good()) {
+    observations_file.close();
+    std::cout << "Loading world observations from 'world_observations.bin'..." << std::endl;
+    
     try {
       std::ifstream ifs("world_observations.bin", std::ios::binary);
       boost::archive::binary_iarchive ia(ifs);
       ia >> observation_cache;
+      
       std::cout << "Successfully loaded observations for "
-                << observation_cache.size() << " worlds from file."
-                << std::endl;
+                << observation_cache.size() << " worlds from file." << std::endl;
     } catch (const std::exception &e) {
-      std::cerr << "Error loading world observations: " << e.what()
-                << std::endl;
+      std::cerr << "Error loading world observations: " << e.what() << std::endl;
       std::cout << "Generating new observations instead..." << std::endl;
       observation_cache.clear();
     }
   } else {
+    // Generate new observations for each world
     std::cout << "Generating observations for each world..." << std::endl;
-    for (int i = 0; i < worlds.size(); i++) {
-      std::string world_name = worlds[i].getName();
+    
+    for (size_t i = 0; i < worlds.size(); i++) {
+      const std::string world_name = worlds[i].getName();
       std::vector<Observation> observations;
       observations.reserve(NUM_TEST_POINTS);
+      
       for (int j = 0; j < NUM_TEST_POINTS; j++) {
         Eigen::Vector3f viewpoint = worlds[i].getRandomValidViewpoint();
         bool seen = worlds[i].isSeen(viewpoint);
@@ -128,123 +157,158 @@ int main(int argc, char **argv) {
       }
       observation_cache[world_name] = observations;
     }
-    // Archive world observations to file
-    std::cout << "Archiving world observations to 'world_observations.bin'..."
-              << std::endl;
+    
+    // Archive generated observations to file for future use
+    std::cout << "Archiving world observations to 'world_observations.bin'..." << std::endl;
     try {
       std::ofstream ofs("world_observations.bin", std::ios::binary);
       boost::archive::binary_oarchive oa(ofs);
       oa << observation_cache;
+      
       std::cout << "Successfully archived " << observation_cache.size()
                 << " world observations." << std::endl;
     } catch (const std::exception &e) {
-      std::cerr << "Error archiving world observations: " << e.what()
-                << std::endl;
+      std::cerr << "Error archiving world observations: " << e.what() << std::endl;
     }
     std::cout << "Done filling world cache." << std::endl;
   }
 
-  std::vector<std::thread> test_threads;
+  // Initialize threading and data structures for world processing
+  std::vector<std::thread> worker_threads;
+  std::ofstream results_file(output_filename);
 
-  std::ofstream data_file(output_filename);
-
+  // Thread-safe data structures for collecting results
   std::mutex world_stats_mutex;
-  std::vector<float> errors(worlds.size(), -1.0f);
-  std::vector<float> confidences(worlds.size(), -1.0f);
-  std::vector<int> error_stab_times(worlds.size(), 10000);
-  std::vector<int> n_updates(worlds.size(), 10000);
   std::mutex stdout_mutex;
+  
+  std::vector<float> final_errors(worlds.size(), -1.0f);
+  std::vector<float> final_confidences(worlds.size(), -1.0f);
+  std::vector<int> stabilization_times(worlds.size(), MAX_STABILIZATION_FAILURE_TIME);
+  std::vector<int> post_stabilization_updates(worlds.size(), MAX_STABILIZATION_FAILURE_TIME);
 
+  // Process each world in separate threads
   for (size_t world_idx = 0; world_idx < worlds.size(); ++world_idx) {
-    test_threads.emplace_back([world = worlds[world_idx], world_idx,
-                               &error_stab_times, &world_stats_mutex, &errors,
-                               &n_updates, &confidences, &stdout_mutex]() mutable {
-      {
-        std::lock_guard<std::mutex> lock(stdout_mutex);
-        std::cout << "Starting test for world " << world.getName() << std::endl;
-      }
+    worker_threads.emplace_back([&worlds, world_idx, &stabilization_times, &world_stats_mutex, 
+                                &final_errors, &post_stabilization_updates, &final_confidences,
+                                &stdout_mutex/*, &history_file_mutex, &history_file*/]() {
+      const World& world = worlds[world_idx];
       ObservabilityModel model;
-      StableChecker error_sc;
-      StableChecker confidence_sc;
+      StableChecker error_stability_checker;
+      StableChecker confidence_stability_checker;
 
-      for (int i = 0; i < MAX_STABLE_ATTEMPTS; i++) {
-        Viewpoint vp = world.getRandomValidViewpoint();
-        bool seen = world.isSeen(vp);
-
-        Observation observation{vp, seen ? 1.0f : 0.0f};
+      // Phase 1: Find stabilization point
+      bool model_stabilized = false;
+      const int max_iterations = global_vbee_settings.n + MAX_STABLE_ATTEMPTS;
+      
+      for (int iteration = 0; iteration < max_iterations; iteration++) {
+        // Generate observation and update model
+        Viewpoint viewpoint = world.getRandomValidViewpoint();
+        bool is_seen = world.isSeen(viewpoint);
+        Observation observation{viewpoint, is_seen ? 1.0f : 0.0f};
         model.Update(observation);
 
-        auto error_confidence = estimateModelError(world, model);
-        if (i >= global_vbee_settings.n &&
-            error_sc.addValue(error_confidence.first) &&
-            confidence_sc.addValue(error_confidence.second)) {
+        // Evaluate current model performance
+        auto result = estimateModelError(world, model);
+        float current_error = result.first;
+        float current_confidence = result.second;
+        
+        // Log progress to history file
+        // {
+        //   std::lock_guard<std::mutex> lock(history_file_mutex);
+        //   history_file << world_idx << "," << iteration << ","
+        //               << current_error << "," << current_confidence << std::endl;
+        // }
+        
+        // Check for stabilization after minimum iterations
+        if (iteration >= global_vbee_settings.n &&
+            error_stability_checker.addValue(current_error) &&
+            confidence_stability_checker.addValue(current_confidence)) {
+          // Model has stabilized
           std::lock_guard<std::mutex> lock(world_stats_mutex);
-          error_stab_times[world_idx] = i - global_vbee_settings.n;
-          errors[world_idx] = error_confidence.first;
-          confidences[world_idx] = error_confidence.second;
+          stabilization_times[world_idx] = iteration - global_vbee_settings.n;
+          final_errors[world_idx] = current_error;
+          final_confidences[world_idx] = current_confidence;
+          model_stabilized = true;
           break;
+        }
+        
+        // Handle case where model never stabilizes
+        if (!model_stabilized && iteration == max_iterations - 1) {
+          {
+            std::lock_guard<std::mutex> lock(stdout_mutex);
+            std::cout << "World " << world.getName()
+                      << " did not stabilize within the maximum attempts." << std::endl;
+          }
+          std::lock_guard<std::mutex> lock(world_stats_mutex);
+          stabilization_times[world_idx] = DEFAULT_STABILIZATION_FAILURE_TIME;
+          final_errors[world_idx] = current_error;
+          final_confidences[world_idx] = current_confidence;
         }
       }
 
-      int updates_count = 0;
-      for (int i = 0; i < 1000; i++) {
-        Viewpoint vp = world.getRandomValidViewpoint();
-        bool seen = world.isSeen(vp);
+      // Phase 2: Count updates after stabilization
+      int update_count = 0;
+      for (int test_iteration = 0; test_iteration < POST_STABILIZATION_TESTS; test_iteration++) {
+        Viewpoint viewpoint = world.getRandomValidViewpoint();
+        bool is_seen = world.isSeen(viewpoint);
+        Observation observation{viewpoint, is_seen ? 1.0f : 0.0f};
+        
+        // Estimate before updating
+        model.Estimate(viewpoint);
+        auto update_result = model.Update(observation);
 
-        Observation observation{vp, seen ? 1.0f : 0.0f};
-        model.Estimate(vp);
-        model.Update(observation);
-
-        if (model.hasUpdated())
-          updates_count++;
+        // Count actual updates
+        if (update_result.second) {
+          update_count++;
+        }
       }
+      
+      // Store final update count
       {
         std::lock_guard<std::mutex> lock(world_stats_mutex);
-        n_updates[world_idx] = static_cast<float>(updates_count) / 1000.0f;
-      }
-      {
-        std::lock_guard<std::mutex> lock(stdout_mutex);
-        std::cout << "Finished " << world.getName() << std::endl;
+        post_stabilization_updates[world_idx] = update_count;
       }
     });
   }
 
-  for (auto &thread : test_threads) {
+  // Wait for all threads to complete
+  for (auto &thread : worker_threads) {
     thread.join();
   }
 
-  float avg_error = 0.0f;
-  for (const auto &error : errors) {
-    avg_error += error;
+  // Calculate and display aggregate statistics
+  float average_error = 0.0f;
+  for (const auto &error : final_errors) {
+    average_error += error;
   }
-  avg_error /= static_cast<float>(errors.size());
-  std::cout << "Average Model Error: " << avg_error << std::endl;
+  average_error /= static_cast<float>(final_errors.size());
+  std::cout << "Average Model Error: " << average_error << std::endl;
 
-  float avg_confidence = 0.0f;
-  for (const auto &confidence : confidences) {
-    avg_confidence += confidence;
+  float average_confidence = 0.0f;
+  for (const auto &confidence : final_confidences) {
+    average_confidence += confidence;
   }
-  avg_confidence /= static_cast<float>(confidences.size());
-  std::cout << "Average Model Confidence: " << avg_confidence << std::endl;
+  average_confidence /= static_cast<float>(final_confidences.size());
+  std::cout << "Average Model Confidence: " << average_confidence << std::endl;
 
-  float avg_error_stab_time = 0.0f;
-  for (const auto &time : error_stab_times) {
-    avg_error_stab_time += static_cast<float>(time);
+  float average_stabilization_time = 0.0f;
+  for (const auto &time : stabilization_times) {
+    average_stabilization_time += static_cast<float>(time);
   }
-  avg_error_stab_time /= static_cast<float>(error_stab_times.size());
-  std::cout << "Average Error Stabilization Time: " << avg_error_stab_time
-            << std::endl;
+  average_stabilization_time /= static_cast<float>(stabilization_times.size());
+  std::cout << "Average Error Stabilization Time: " << average_stabilization_time / 100.0f << std::endl;
 
-  float avg_n_updates = 0.0f;
-  for (const auto &n_update : n_updates) {
-    avg_n_updates += static_cast<float>(n_update);
+  float average_post_stab_updates = 0.0f;
+  for (const auto &update_count : post_stabilization_updates) {
+    average_post_stab_updates += static_cast<float>(update_count);
   }
-  avg_n_updates /= static_cast<float>(n_updates.size());
-  std::cout << "Average Number of Updates after Stabilization: "
-            << avg_n_updates << std::endl;
+  average_post_stab_updates /= static_cast<float>(post_stabilization_updates.size());
+  std::cout << "Average Number of Updates after Stabilization: " << average_post_stab_updates / 1000.0f << std::endl;
 
-  data_file << avg_error << "," << avg_error_stab_time << "," << avg_n_updates
-            << "\n";
-  data_file.close();
+  // Write results to output file
+  results_file << average_error << "," << average_confidence << "," << average_stabilization_time / 100.0f << "," 
+               << average_post_stab_updates / 1000.0f << "\n";
+  results_file.close();
+  
   return 0;
 }

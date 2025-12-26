@@ -1,18 +1,12 @@
-#ifndef WORLD_H
-#define WORLD_H
+#pragma once
 
-#include <atomic>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
-#include <iomanip>
-#include <iostream>
-#include <thread>
 #include <utility>
-#include <sstream>
 #include <vector>
 #include <eigen3/Eigen/Core>
 
@@ -29,8 +23,8 @@
 #define FALSE_NEGATIVE_RATE 0.3f
 #define MAX_ITERS 2000
 #define MAX_VIEWPOINTS 100000
-#define NUM_TEST_POINTS 5000
-#define MAX_STABLE_ATTEMPTS 1000
+#define NUM_TEST_POINTS 1000
+#define MAX_STABLE_ATTEMPTS 100
 
 extern VBEESettings global_vbee_settings;
 
@@ -65,19 +59,17 @@ public:
   World() = default; // Default constructor for serialization
   World(float goal_blocked_rate, float goal_keepout_rate);
 
-  bool isInKeepout(Eigen::Vector3f point);
+  bool isInKeepout(Eigen::Vector3f point) const;
   std::pair<float, float> getRatePair() const;
   void deletePoint();
   bool isPointDeleted() const;
   void restorePoint();
   void enableErrors();
   void disableErrors();
-  bool isSeen(Eigen::Vector3f point);
-  Eigen::Vector3f getRandomViewpoint();
-  Eigen::Vector3f getRandomValidViewpoint();
-  Eigen::Vector3f getRandomValidPositiveViewpoint();
-  Eigen::Vector3f getRandomValidNegativeViewpoint();
+  bool isSeen(Eigen::Vector3f point) const;
+  Eigen::Vector3f getRandomViewpoint() const;
+  Eigen::Vector3f getRandomValidViewpoint() const;
+  Eigen::Vector3f getRandomValidPositiveViewpoint() const;
+  Eigen::Vector3f getRandomValidNegativeViewpoint() const;
   std::string getName() const;
 };
-
-#endif // WORLD_H

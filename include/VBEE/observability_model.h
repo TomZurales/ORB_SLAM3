@@ -95,11 +95,9 @@ public:
   // Returns (estimated P(S|E), confidence in estimate)
   std::pair<float, float> Estimate(const Viewpoint &viewpoint);
 
-  float Update(const Observation &observation);
+  std::pair<float, bool> Update(const Observation &observation);
 
   std::shared_ptr<std::mutex> mtx_prev_observations;
-
-  bool hasUpdated() const { return didUpdate; }
 
   float getPctFull() {
     std::lock_guard<std::mutex> lock(*mtx_prev_observations);
@@ -110,7 +108,6 @@ private:
   ObservabilityModelParams params;
   std::shared_ptr<std::atomic<float>> last_estimate{std::make_shared<std::atomic<float>>(0.0f)};
   std::shared_ptr<std::atomic<float>> last_confidence{std::make_shared<std::atomic<float>>(0.0f)};
-  bool didUpdate = false;
 
 protected:
   ObservationHistory history;

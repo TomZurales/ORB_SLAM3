@@ -111,7 +111,7 @@ float VBEE::Update(Observation observation, bool commit, bool updatePExists) {
   //   p_e = tmp_p_e;
 
   if(observation.s == 1.0f) {
-    observability = model_dyn.Update(observation) * model_dyn.getPctFull();
+    observability = model_dyn.Update(observation).first;
     model = model_dyn; // Replace the static model with the current dynamic model
   } else {
     model_dyn.Update(observation);
@@ -160,7 +160,7 @@ float VBEE::UpdateMany(std::vector<Observation> observations) {
     //   p_e = tmp_p_e;
 
     float feedback = p_e - prior;
-    observability = model_dyn.Update(observation);
+    observability = model_dyn.Update(observation).first;
   }
   return p_e;
 }

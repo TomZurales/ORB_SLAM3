@@ -233,7 +233,7 @@ public:
     }
   }
 
-  bool isInKeepout(Eigen::Vector3f point) {
+  bool isInKeepout(Eigen::Vector3f point) const {
     for (const auto &keep_out : keep_outs) {
       float angle = acos(point.normalized().dot(keep_out.normalized()));
       if (angle < KEEP_OUT_ANGLE_RAD && point.norm() > keep_out.norm()) {

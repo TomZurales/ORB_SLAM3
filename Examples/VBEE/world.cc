@@ -2,6 +2,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <iomanip>
+#include <thread>
+#include <iostream>
+#include <atomic>
 
 // returns (meets_target_blocked, error)
 std::pair<bool, int> World::meetsTargetBlocked(int target_n_blocked) {
@@ -176,7 +180,7 @@ World::World(float goal_blocked_rate, float goal_keepout_rate)
     }
   }
 
-bool World::isInKeepout(Eigen::Vector3f point) {
+bool World::isInKeepout(Eigen::Vector3f point) const {
     for (const auto &keep_out : keep_outs) {
       float angle = acos(point.normalized().dot(keep_out.normalized()));
       if (angle < KEEP_OUT_ANGLE_RAD && point.norm() > keep_out.norm()) {
@@ -200,7 +204,7 @@ void World::enableErrors() { doErrors = true; }
 
 void World::disableErrors() { doErrors = false; }
 
-bool World::isSeen(Eigen::Vector3f point) {
+bool World::isSeen(Eigen::Vector3f point) const {
     if (pointDeleted) {
       if (!doErrors) {
         return false;
@@ -234,7 +238,7 @@ bool World::isSeen(Eigen::Vector3f point) {
     return true;
   }
 
-Eigen::Vector3f World::getRandomViewpoint() {
+Eigen::Vector3f World::getRandomViewpoint() const {
     float length =
         static_cast<float>(rand()) / static_cast<float>(RAND_MAX) *
             (WORLD_RADIUS - MIN_VIEWPOINT_DISTANCE) +
@@ -244,7 +248,7 @@ Eigen::Vector3f World::getRandomViewpoint() {
            length; // Random point inside sphere of radius WORLD_RADIUS
 }
 
-Eigen::Vector3f World::getRandomValidViewpoint() {
+Eigen::Vector3f World::getRandomValidViewpoint() const {
     Eigen::Vector3f point;
     do {
       point = getRandomViewpoint();
@@ -252,7 +256,7 @@ Eigen::Vector3f World::getRandomValidViewpoint() {
     return point;
 }
 
-Eigen::Vector3f World::getRandomValidPositiveViewpoint() {
+Eigen::Vector3f World::getRandomValidPositiveViewpoint() const {
     Eigen::Vector3f point;
     do {
       point = getRandomViewpoint();
@@ -260,7 +264,7 @@ Eigen::Vector3f World::getRandomValidPositiveViewpoint() {
     return point;
 }
 
-Eigen::Vector3f World::getRandomValidNegativeViewpoint() {
+Eigen::Vector3f World::getRandomValidNegativeViewpoint() const{
     Eigen::Vector3f point;
     do {
       point = getRandomViewpoint();

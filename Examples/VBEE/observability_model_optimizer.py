@@ -6,11 +6,11 @@ import os
 from pathlib import Path
 
 # Create a persistent SQLite database for the study
-DB_PATH = "observability_optuna_study3.db"
+DB_PATH = "observability_optuna_study4.db"
 STUDY_NAME = "observability_model_optimization"
 
 def objective(trial):
-    n = trial.suggest_int("n", 2, 500)
+    n = trial.suggest_int("n", 2, 150)
     k = trial.suggest_int("k", 1, n)
     angle_threshold = trial.suggest_float("angle_threshold", 0.01, 1.57)
     distance_threshold = trial.suggest_float("distance_threshold", 0.01, 10.0)
@@ -54,7 +54,8 @@ def objective(trial):
         # Convert to float and add some logging
         objective_values = tuple(float(v) for v in values)
         print(f"Trial {trial.number} completed with values: {objective_values}")
-        single_value = objective_values[0] * 3 + (objective_values[1] / 100) + ((objective_values[2] / 1000) * 2)
+        # single_value = (objective_values[0] * 3) + ((1 - objective_values[1]) * 3) + (objective_values[2]) + (objective_values[3])
+        single_value = objective_values[0]
         return single_value
         
     except (FileNotFoundError, ValueError) as e:
@@ -85,7 +86,7 @@ def main():
     
     # Start optimization
     try:
-        study.optimize(objective, n_trials=1000, n_jobs=20)
+        study.optimize(objective, n_trials=100, n_jobs=20)
         
         print("\nOptimization completed!")
         print(f"Best trials:")
