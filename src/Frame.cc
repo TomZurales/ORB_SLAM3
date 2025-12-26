@@ -545,6 +545,7 @@ Eigen::Vector3f Frame::GetRelativePoseTlr_translation() {
 }
 
 bool Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit) {
+  
   if (Nleft == -1) {
     pMP->mbTrackInView = false;
     pMP->mTrackProjX = -1;
@@ -615,6 +616,55 @@ bool Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit) {
     pMP->mbTrackInViewR = isInFrustumChecks(pMP, viewingCosLimit, true);
 
     return pMP->mbTrackInView || pMP->mbTrackInViewR;
+  }
+}
+
+bool Frame::isInFrustumSimple(MapPoint *pMP, float viewingCosLimit) {
+  if (Nleft == -1) {
+    // 3D in absolute coordinates
+    Eigen::Matrix<float, 3, 1> P = pMP->GetWorldPos();
+
+    // 3D in camera coordinates
+    const Eigen::Matrix<float, 3, 1> Pc = mRcw * P + mtcw;
+
+    // Check positive depth
+    const float &PcZ = Pc(2);
+    if (PcZ < 0.0f)
+      return false;
+
+    // Project to image coordinates
+    const Eigen::Vector2f uv = mpCamera->project(Pc);
+
+    // Check if within image bounds
+    if (uv(0) < mnMinX || uv(0) > mnMaxX)
+      return false;
+    if (uv(1) < mnMinY || uv(1) > mnMaxY)
+      return false;
+
+    return true;
+  } else {
+    // 3D in absolute coordinates
+    Eigen::Vector3f P = pMP->GetWorldPos();
+
+    // Check left camera
+    const Eigen::Matrix<float, 3, 1> Pc = mRcw * P + mtcw;
+    if (Pc(2) > 0.0f) {
+      const Eigen::Vector2f uv = mpCamera->project(Pc);
+      if (uv(0) >= mnMinX && uv(0) <= mnMaxX && uv(1) >= mnMinY && uv(1) <= mnMaxY)
+        return true;
+    }
+
+    // Check right camera
+    Eigen::Matrix3f Rrl = mTrl.rotationMatrix();
+    Eigen::Vector3f trl = mTrl.translation();
+    const Eigen::Vector3f PcR = Rrl * mRcw * P + Rrl * mtcw + trl;
+    if (PcR(2) > 0.0f) {
+      const Eigen::Vector2f uvR = mpCamera2->project(PcR);
+      if (uvR(0) >= mnMinX && uvR(0) <= mnMaxX && uvR(1) >= mnMinY && uvR(1) <= mnMaxY)
+        return true;
+    }
+
+    return false;
   }
 }
 

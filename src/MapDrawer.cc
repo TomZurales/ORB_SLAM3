@@ -192,6 +192,41 @@ bool MapDrawer::ParseViewerParamFile(cv::FileStorage &fSettings) {
 //   glEnd();
 // }
 
+void ApplyHeatmapColor(float value, float confidence = 1.0f) {
+  // Clamp value between 0 and 1
+  value = std::max(0.0f, std::min(1.0f, value));
+  
+  float r, g, b;
+  
+  if (value <= 0.25f) {
+    // Red to Orange (0.0 to 0.25)
+    float t = value / 0.25f;
+    r = 1.0f;
+    g = t * 0.5f;
+    b = 0.0f;
+  } else if (value <= 0.5f) {
+    // Orange to Yellow (0.25 to 0.5)
+    float t = (value - 0.25f) / 0.25f;
+    r = 1.0f;
+    g = 0.5f + t * 0.5f;
+    b = 0.0f;
+  } else if (value <= 0.75f) {
+    // Yellow to Blue (0.5 to 0.75)
+    float t = (value - 0.5f) / 0.25f;
+    r = 1.0f - t;
+    g = 1.0f - t;
+    b = t;
+  } else {
+    // Blue to Green (0.75 to 1.0)
+    float t = (value - 0.75f) / 0.25f;
+    r = 0.0f;
+    g = t;
+    b = 1.0f - t;
+  }
+  
+  glColor4f(r, g, b, confidence);
+}
+
 // Color based on VBEE Existence Probability
 void MapDrawer::DrawMapPoints() {
   Map *pActiveMap = mpAtlas->GetCurrentMap();
@@ -220,12 +255,13 @@ void MapDrawer::DrawMapPoints() {
     // glColor3f(0,vpMPs[i]->vbee.GetPSeenGivenExists(vpMPs[i]->GetWorldPos() -
     // cameraViewpoint),0.0);
     // glColor3f(1 - vpMPs[i]->vbee.Query(), vpMPs[i]->vbee.Query(), 0.0);
-    float psge = vpMPs[i]->vbee.GetPSeenGivenExists(cameraPosition - pos);
+    auto psge_confidence = vpMPs[i]->vbee.GetPSeenGivenExists(cameraPosition - pos);
+    float psge = psge_confidence.first;
     float p_e = vpMPs[i]->vbee.Query();
     // glPointSize((psge * 5) + 1);
     glBegin(GL_POINTS);
     // glColor3f(1 - p_e, p_e, 0.0);
-    glColor3f(1 - psge, psge, 0.0);
+    ApplyHeatmapColor(psge, psge_confidence.second);
     glVertex3f(pos(0), pos(1), pos(2));
     glEnd();
   }
@@ -239,11 +275,12 @@ void MapDrawer::DrawMapPoints() {
     if ((*sit)->isBad())
       continue;
     Eigen::Matrix<float, 3, 1> pos = (*sit)->GetWorldPos();
-    float psge = (*sit)->vbee.GetPSeenGivenExists(cameraPosition - pos);
+    auto psge_confidence = (*sit)->vbee.GetPSeenGivenExists(cameraPosition - pos);
+    float psge = psge_confidence.first;
     float p_e = (*sit)->vbee.Query();
     // glPointSize((psge * 5) + 1);
     glBegin(GL_POINTS);
-    glColor3f(1 - psge, psge, 0.0);
+    ApplyHeatmapColor(psge, psge_confidence.second);
     glVertex3f(pos(0), pos(1), pos(2));
     glEnd();
   }

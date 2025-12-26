@@ -28,6 +28,7 @@
 #include <System.h>
 
 #include "MapPoint.h"
+#include "Optimizer.h"
 #include "VBEE/vbee.h"
 #include "VBEE/TrackedStats.h"
 
@@ -181,7 +182,7 @@ int main(int argc, char **argv) {
       SLAM.TrackStereo(imLeft, imRight, tframe, vector<ORB_SLAM3::IMU::Point>(),
                        vstrImageLeft[seq][ni]);
 
-      // TEMPORARY: ONLY LEAVE IN WHILE CREATING VBEE GROUND TRUTHS
+      // // TEMPORARY: ONLY LEAVE IN WHILE CREATING VBEE GROUND TRUTHS
       //   if (ni == nImages[seq] - 2) {
       //     std::vector<ORB_SLAM3::Map *> vpMaps = SLAM.mpAtlas->GetAllMaps();
       //     for (ORB_SLAM3::Map *pMap : vpMaps) {
@@ -192,7 +193,7 @@ int main(int argc, char **argv) {
       //       }
       //     }
       //   }
-      // END GROUND TRUTH CREATION
+      // // END GROUND TRUTH CREATION
 
       if (std::find(split_stamps.begin(), split_stamps.end(), tframe) !=
           split_stamps.end()) {

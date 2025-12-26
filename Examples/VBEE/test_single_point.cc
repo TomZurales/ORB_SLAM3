@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     std::cout << "Camera position: " << i << "(" << camera_x << ", " << camera_y
               << ", " << camera_z << ")" << std::endl;
     std::cout << "Estimated pExists: " << vbee.Query() << std::endl;
-    std::cout << "Observability Estimate: " << vbee.GetPSeenGivenExists(Eigen::Vector3f(camera_x, camera_y, camera_z)) << std::endl;
+    std::cout << "Observability Estimate: " << vbee.GetPSeenGivenExists(Eigen::Vector3f(camera_x, camera_y, camera_z)).first << std::endl;
     std::cout << "Observability: " << vbee.GetObservability() << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     i++;

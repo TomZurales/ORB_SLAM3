@@ -343,6 +343,7 @@ public:
     return variance < 0.001f;
   }
 };
+
 int main(int argc, char **argv) {
   if(argc != 1 && argc != 15) {
     std::cout << "Usage: vbee_test_random_accuracy bad_threshold init_pe damping_coeff init_observability observability_damping_coeff k n angle_threshold feedback_threshold sigmoid_steepness sigmoid_midpoint falseNegativeRate falsePositiveRate output_filename" << std::endl;
@@ -360,7 +361,7 @@ int main(int argc, char **argv) {
     global_vbee_settings.k = std::stoi(argv[6]);
     global_vbee_settings.n = std::stoi(argv[7]);
     global_vbee_settings.angle_threshold = std::stof(argv[8]);
-    global_vbee_settings.feedback_threshold = std::stof(argv[9]);
+    // global_vbee_settings.feedback_threshold = std::stof(argv[9]);
     global_vbee_settings.sigmoid_steepness = std::stod(argv[10]);
     global_vbee_settings.sigmoid_midpoint = std::stod(argv[11]);
     global_vbee_settings.falseNegativeRate = std::stof(argv[12]);
@@ -433,7 +434,7 @@ int main(int argc, char **argv) {
         vbee.Update(viewpoint, seen);
 
         float p_exists = vbee.Query();
-        float p_seen_given_exists = vbee.GetPSeenGivenExists(viewpoint);
+        float p_seen_given_exists = vbee.GetPSeenGivenExists(viewpoint).first;
         float observability = vbee.GetObservability();
 
         if(!observability_stable && observability_sc.addValue(observability)) {

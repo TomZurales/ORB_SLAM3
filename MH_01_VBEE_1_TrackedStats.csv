@@ -1,0 +1,2 @@
+avg_track_time_sec,n_track,avg_relocalization_time_sec,n_relocalization,avg_loop_closure_time_sec,n_loop_closure,n_good_eliminations,n_bad_eliminations
+0.00986905,17842,0,0,0.00623723,40,1168,0

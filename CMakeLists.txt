@@ -144,13 +144,22 @@ target_link_libraries(stereo_euroc ${PROJECT_NAME})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/VBEE)
 
+add_library(vbee_characterization_utils STATIC
+    Examples/VBEE/world.cc
+    Examples/VBEE/stable_checker.cc
+)
+target_link_libraries(vbee_characterization_utils PUBLIC vbee)
+
 add_executable(vbee_test_single_point Examples/VBEE/test_single_point.cc)
 target_link_libraries(vbee_test_single_point PRIVATE vbee)
 
 add_executable(vbee_test_random_accuracy Examples/VBEE/test_random_accuracy.cc)
 target_compile_options(vbee_test_random_accuracy PRIVATE -O3 -DCMAKE_BUILD_TYPE=Release)
-target_link_libraries(vbee_test_random_accuracy PRIVATE vbee -lboost_serialization)
+target_link_libraries(vbee_test_random_accuracy PRIVATE vbee_characterization_utils -lboost_serialization)
 
+add_executable(characterize_observability_model Examples/VBEE/characterize_observability_model.cc)
+target_compile_options(characterize_observability_model PRIVATE -O3 -DCMAKE_BUILD_TYPE=Release)
+target_link_libraries(characterize_observability_model PRIVATE vbee_characterization_utils -lboost_serialization)
 # # #Stereo examples
 # set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/VBEEResults)
 

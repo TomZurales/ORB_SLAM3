@@ -22,19 +22,9 @@ VBEE::VBEE(int mpID) : mpID(mpID) {
           global_vbee_settings.observability_damping_coeff // 0.02f
   };
 
-  model = ObservabilityModel(ObservabilityModelParams{
-      .k = global_vbee_settings.k,                                  // 10,
-      .n = global_vbee_settings.n,                                  // 500,
-      .angle_threshold = global_vbee_settings.angle_threshold,      // 1.0f,
-      .feedback_threshold = global_vbee_settings.feedback_threshold // 0.05f
-  });
+  model = ObservabilityModel();
 
-  model_dyn = ObservabilityModel(ObservabilityModelParams{
-      .k = global_vbee_settings.k,                                  // 10,
-      .n = global_vbee_settings.n,                                  // 500,
-      .angle_threshold = global_vbee_settings.angle_threshold,      // 1.0f,
-      .feedback_threshold = global_vbee_settings.feedback_threshold // 0.05f
-  });
+  model_dyn = ObservabilityModel();
 
   epe = ExistenceProbabilityEstimator();
   p_e = params.init_p_e;
@@ -74,24 +64,38 @@ float VBEE::Update(Observation observation, bool commit, bool updatePExists) {
   float prior = p_e;
 
   // Raise the bar for negative observations. Points tend to not be "under-seen" more often than "over-seen"
-  // if (observation.s == 0.0f) {
-  //   negative_observation_buffer.push_back(observation);
-  //   // 20 negative observations in a row causes all to be processed at once.
-  //   if (negative_observation_buffer.size() == 20) {
-  //     UpdateMany(negative_observation_buffer);
-  //     negative_observation_buffer.clear();
-  //     return p_e;
-  //   } else {
-  //     return p_e;
-  //   }
-  // } else {
-  //   // But one positive observation causes all negative observations to be ignored, only processing the positive one
-  //   negative_observation_buffer.clear();
-  // }
+  if (observation.s == 0.0f) {
+    negative_observation_buffer.push_back(observation);
+    // 20 negative observations in a row causes all to be processed at once.
+    if (negative_observation_buffer.size() == 20) {
+      UpdateMany(negative_observation_buffer);
+      negative_observation_buffer.clear();
+      return p_e;
+    } else {
+      return p_e;
+    }
+  } else {
+    // But one positive observation causes all negative observations to be ignored, only processing the positive one
+    negative_observation_buffer.clear();
+  }
 
-  // Clamp model estimate between 0.001 and 0.999
-  float model_estimate =
-      std::min(0.999f, std::max(0.001f, model.Estimate(observation.v)));
+  float model_estimate;
+
+  // If the map point is seen, then the dynamic model is more accurate
+  // because the map point still exists. If the point is not seen, then we
+  // rely on the observability model from the last time the point was seen.
+  if(observation.s == 1.0f) {
+    auto model_output = model_dyn.Estimate(observation.v);
+    model_estimate =
+        std::min(0.999f, std::max(0.001f, model_output.first));
+  } else {
+    auto model_output = model.Estimate(observation.v);
+    model_estimate =
+        std::min(0.999f, std::max(0.001f, model_output.first));
+  }
+  // // Clamp model estimate between 0.001 and 0.999
+  // float model_estimate =
+  //     std::min(0.999f, std::max(0.001f, model.Estimate(observation.v)));
 
   // Update the posterior probability using EPE
   float posterior = epe.Update(observation, prior, model_estimate);
@@ -106,10 +110,12 @@ float VBEE::Update(Observation observation, bool commit, bool updatePExists) {
   // if (updatePExists)
   //   p_e = tmp_p_e;
 
-  float feedback = p_e - prior;
-  float weight2 = 1 - Sigmoid(n_observations);
-  float prev_observability = observability;
-  observability = (weight2 * model.Update(observation, feedback)) + (1 - weight2) * prev_observability;
+  if(observation.s == 1.0f) {
+    observability = model_dyn.Update(observation) * model_dyn.getPctFull();
+    model = model_dyn; // Replace the static model with the current dynamic model
+  } else {
+    model_dyn.Update(observation);
+  }
 
   // float obs_damping_coeff = params.observability_damping_coeff;
   // // Use s as the observation value
@@ -137,8 +143,8 @@ float VBEE::UpdateMany(std::vector<Observation> observations) {
     float prior = p_e;
 
     // Clamp model estimate between 0.001 and 0.999
-    float model_estimate =
-        std::min(0.999f, std::max(0.001f, model.Estimate(observation.v)));
+    auto model_output = model.Estimate(observation.v);
+    float model_estimate = std::min(0.999f, std::max(0.001f, model_output.first));
 
     // Update the posterior probability using EPE
     float posterior = epe.Update(observation, prior, model_estimate);
@@ -154,12 +160,14 @@ float VBEE::UpdateMany(std::vector<Observation> observations) {
     //   p_e = tmp_p_e;
 
     float feedback = p_e - prior;
-    observability = model.Update(observation, feedback);
+    observability = model_dyn.Update(observation);
   }
   return p_e;
 }
 
-float VBEE::GetPSeenGivenExists(Viewpoint v) { return model.Estimate(v); }
+std::pair<float, float> VBEE::GetPSeenGivenExists(Viewpoint v) {
+  return model.Estimate(v);
+}
 
 float VBEE::Update(Eigen::Vector3f v, bool seen) {
   float s = seen ? 1.0f : 0.0f;
@@ -186,17 +194,17 @@ void VBEE::Merge(VBEE &other) {
   float avg_p_e = std::min(0.999f, std::max(0.001f, (p_e + other.p_e) / 2.0f));
 
   // Merge observability
-  // float avg_observability =
-  //     std::min(OBSERVABILITY_MAX,
-  //              std::max(OBSERVABILITY_MIN,
-  //                       (observability + other.observability) / 2.0f));
+  float avg_observability =
+      std::min(OBSERVABILITY_MAX,
+               std::max(OBSERVABILITY_MIN,
+                        (observability + other.observability) / 2.0f));
 
-  // for (auto observation : other.model.prev_observations) {
+  // for (auto observation : other.model.) {
   //   this->Update(observation, true); // No feedback for merging
   //   this->set_observability(avg_observability);
   //   this->set_pe(avg_p_e);
   // }
-  // this->set_observability(avg_observability);
+  this->set_observability(avg_observability);
   this->set_pe(avg_p_e);
   this->n_observations += other.n_observations;
 }
