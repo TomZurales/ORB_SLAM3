@@ -28,7 +28,7 @@
 #include "Map.h"
 
 #include "SerializationUtils.h"
-#include "VBEE/vbee.h"
+#include "vbee.h"
 
 #include <mutex>
 #include <opencv2/core/core.hpp>
@@ -213,6 +213,10 @@ public:
   bool fakeBad = false;
   bool countedForStats = false;
   void SetFakeBadFlag() { fakeBad = true; }
+  bool IsFakeBad() { return fakeBad; }
+  bool vbeeEliminated = false;
+  void SetVBEEEliminated() { vbeeEliminated = true; }
+  bool IsVBEEEliminated() { return vbeeEliminated; }
 
 protected:
   // Position in absolute coordinates

@@ -21,7 +21,7 @@
 
 #include "MapPoint.h"
 #include "ORBmatcher.h"
-#include "VBEE/vbee.h"
+#include "vbee.h"
 
 #include <mutex>
 

@@ -6,13 +6,12 @@ import os
 from pathlib import Path
 
 # Create a persistent SQLite database for the study
-DB_PATH = "observability_optuna_study4.db"
+DB_PATH = "observability_optuna_study6.db"
 STUDY_NAME = "observability_model_optimization"
 
 def objective(trial):
     n = trial.suggest_int("n", 2, 150)
     k = trial.suggest_int("k", 1, n)
-    angle_threshold = trial.suggest_float("angle_threshold", 0.01, 1.57)
     distance_threshold = trial.suggest_float("distance_threshold", 0.01, 10.0)
     unknown_psge_value = trial.suggest_float("unknown_psge_value", 0.0, 1.0)
     min_confidence_threshold = trial.suggest_float("min_confidence_threshold", 0.00, 1.0)
@@ -28,7 +27,6 @@ def objective(trial):
         ["./characterize_observability_model",
             str(n),
             str(k),
-            str(angle_threshold),
             str(distance_threshold),
             str(unknown_psge_value),
             str(min_confidence_threshold),
@@ -55,8 +53,8 @@ def objective(trial):
         objective_values = tuple(float(v) for v in values)
         print(f"Trial {trial.number} completed with values: {objective_values}")
         # single_value = (objective_values[0] * 3) + ((1 - objective_values[1]) * 3) + (objective_values[2]) + (objective_values[3])
-        single_value = objective_values[0]
-        return single_value
+        # single_value = objective_values[0]
+        return [objective_values[0], objective_values[1]]
         
     except (FileNotFoundError, ValueError) as e:
         print(f"Error reading results for trial {trial.number}: {e}")
@@ -72,7 +70,7 @@ def main():
     study = optuna.create_study(
         study_name=STUDY_NAME,
         storage=storage,
-        directions=["minimize"],
+        directions=["minimize", "minimize"],  # Multi-objective optimization
         load_if_exists=True  # This allows resuming optimization
     )
     
@@ -82,11 +80,11 @@ def main():
     
     # Add study-level attributes for better dashboard visualization
     study.set_system_attr("description", "Observability model parameter optimization")
-    study.set_system_attr("objective_names", ["Combined Performance Metric"])
+    study.set_system_attr("objective_names", ["Average Error", "Average Estimation Time"])
     
     # Start optimization
     try:
-        study.optimize(objective, n_trials=100, n_jobs=20)
+        study.optimize(objective, n_trials=1000, n_jobs=10)
         
         print("\nOptimization completed!")
         print(f"Best trials:")

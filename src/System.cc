@@ -22,8 +22,8 @@
 #include "System.h"
 #include "KeyFrame.h"
 #include "MapPoint.h"
-#include "VBEE/TrackedStats.h"
-#include "VBEE/observation.h"
+#include "TrackedStats.h"
+#include "observation.h"
 #include <algorithm>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
@@ -337,76 +337,62 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
   // mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
   // mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
 
-  if (global_vbee_settings.in_use) {
-    auto t_vbee_start = std::chrono::steady_clock::now();
-    std::set<MapPoint *> currentMapPoints;
-    for (MapPoint *pMP : mpTracker->mCurrentFrame.mvpMapPoints) {
-      if (pMP) {
-        currentMapPoints.insert(pMP);
-        Observation obs =
-            Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() -
-                              pMP->GetWorldPos()),
-                        .s = 1.0};
-        pMP->vbee.Update(obs, true);
-        pMP->isInCameraView = true;
-        pMP->vbeeSeen = true;
-      }
-    }
+  // if (global_vbee_settings.in_use) {
+  //   std::set<MapPoint *> currentMapPoints;
+  //   for (MapPoint *pMP : mpTracker->mCurrentFrame.mvpMapPoints) {
+  //     if (pMP && !pMP->isBad()) {
+  //       currentMapPoints.insert(pMP);
+  //       Observation obs =
+  //           Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() -
+  //                             pMP->GetWorldPos()),
+  //                       .s = 1.0};
+  //       pMP->vbee.Update(obs, true);
 
-    // Project all map points into the current frame's view to determine if they
-    // "should" be seen
-    std::set<KeyFrame *> local_keyframes;
-    for(auto *pMP : currentMapPoints)
-    {
-      for(auto &obs : pMP->GetObservations())
-      {
-        local_keyframes.insert(obs.first);
-      }
-    }
-    std::set<MapPoint*> local_map_points;
-    for(auto *pKF : local_keyframes)
-    {
-      for(auto &mp : pKF->GetMapPoints())
-      {
-        if(mp && currentMapPoints.count(mp) == 0 && !mp->isBad())
-          local_map_points.insert(mp);
-      }
-    }
-    vector<thread> threads;
+  //       // We have seen a point that was supposed to be gone. Count it as a bad
+  //       // elimination
+  //       if (global_vbee_settings.fake_eliminations && pMP->IsFakeBad()) {
+  //         global_tracked_stats.AddBadElimination(pMP->mnId);
+  //       }
 
-    auto t_project_start = std::chrono::steady_clock::now();
-    for (auto pMP : local_map_points) {
-      threads.emplace_back([pMP, this]() {
-        if (mpTracker->mCurrentFrame.isInFrustumSimple(pMP, 0.5)) {
-          Observation obs =
-              Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() -
-                                pMP->GetWorldPos()),
-                          .s = 0.0};
-          float new_pExists = pMP->vbee.Update(obs, true);
-          if (new_pExists < global_vbee_settings.bad_threshold) {
-            // global_tracked_stats.AddElimination(pMP->mnId);
-            pMP->SetBadFlag();
-          }
-          pMP->isInCameraView = true;
-          pMP->vbeeSeen = false;
-        }
-      });
-    }
+  //       pMP->isInCameraView = true;
+  //       pMP->vbeeSeen = true;
+  //     }
+  //   }
 
-    // Join all threads
-    for (auto &t : threads) {
-      t.join();
-    }
-    auto t_vbee_end = std::chrono::steady_clock::now();
-    std::chrono::duration<double> vbee_time_used = t_vbee_end - t_vbee_start;
-    std::cout << "VBEE update time: " << vbee_time_used.count() * 1000.0
-              << " ms" << std::endl;
-  }
+  //   // Process all map points in the current map that are not currently visible
+  //   std::vector<MapPoint*> allMapPointsVec = mpAtlas->GetCurrentMap()->GetAllMapPoints();
+  //   std::set<MapPoint*> allMapPoints(allMapPointsVec.begin(), allMapPointsVec.end());
+  //   for (MapPoint* pMP : allMapPoints) {
+  //     if (!pMP || pMP->isBad() || pMP->IsFakeBad() || currentMapPoints.find(pMP) != currentMapPoints.end()) {
+  //       continue;
+  //     }
 
-  std::chrono::steady_clock::time_point t_end =
-      std::chrono::steady_clock::now();
-  std::chrono::duration<double> time_used = t_end - t_start;
-  global_tracked_stats.AddTrackTime(time_used.count());
+  //     // Check if the map point is within camera frustum
+  //     if (!mpTracker->mCurrentFrame.isInFrustumSimple(pMP, 0.5)) {
+  //       continue;
+  //     }
+  //   //   pMP->isInCameraView = false;
+  //   //   pMP->vbeeSeen = false;
+  //   // }
+  //   // for (auto pMP : mpTracker->GetExpectedVisibleMapPoints()) {
+  //   //   if (currentMapPoints.find(pMP) != currentMapPoints.end()) {
+  //   //     continue;
+  //   //   }
+  //     Observation obs =
+  //         Observation{.v = (mpTracker->mCurrentFrame.GetCameraCenter() -
+  //                           pMP->GetWorldPos()),
+  //                     .s = 0.0};
+  //     pMP->vbee.Update(obs, true);
+
+  //     pMP->isInCameraView = true;
+  //     pMP->vbeeSeen = false;
+  //   }
+  // }
+
+  // std::chrono::steady_clock::time_point t_end =
+  //     std::chrono::steady_clock::now();
+  // std::chrono::duration<double> time_used = t_end - t_start;
+  // global_tracked_stats.AddTrackTime(time_used.count());
   return Tcw;
 }
 

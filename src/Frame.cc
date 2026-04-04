@@ -624,6 +624,14 @@ bool Frame::isInFrustumSimple(MapPoint *pMP, float viewingCosLimit) {
     // 3D in absolute coordinates
     Eigen::Matrix<float, 3, 1> P = pMP->GetWorldPos();
 
+    // Check distance is in reasonable range
+    const float maxReasonableDistance = 10.0f;
+    const Eigen::Vector3f PO = P - mOw;
+    const float dist = PO.norm();
+
+    if (dist > maxReasonableDistance)
+      return false;
+
     // 3D in camera coordinates
     const Eigen::Matrix<float, 3, 1> Pc = mRcw * P + mtcw;
 
@@ -645,6 +653,14 @@ bool Frame::isInFrustumSimple(MapPoint *pMP, float viewingCosLimit) {
   } else {
     // 3D in absolute coordinates
     Eigen::Vector3f P = pMP->GetWorldPos();
+
+    // Check distance is in reasonable range
+    const float maxReasonableDistance = 10.0f;
+    const Eigen::Vector3f PO = P - mOw;
+    const float dist = PO.norm();
+
+    if (dist > maxReasonableDistance)
+      return false;
 
     // Check left camera
     const Eigen::Matrix<float, 3, 1> Pc = mRcw * P + mtcw;

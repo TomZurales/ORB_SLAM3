@@ -1,4 +1,4 @@
-#include "VBEE/vbee.h"
+#include "vbee.h"
 #include <atomic>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
@@ -360,12 +360,10 @@ int main(int argc, char **argv) {
     global_vbee_settings.observability_damping_coeff = std::stof(argv[5]);
     global_vbee_settings.k = std::stoi(argv[6]);
     global_vbee_settings.n = std::stoi(argv[7]);
-    global_vbee_settings.angle_threshold = std::stof(argv[8]);
-    // global_vbee_settings.feedback_threshold = std::stof(argv[9]);
-    global_vbee_settings.sigmoid_steepness = std::stod(argv[10]);
-    global_vbee_settings.sigmoid_midpoint = std::stod(argv[11]);
-    global_vbee_settings.falseNegativeRate = std::stof(argv[12]);
-    global_vbee_settings.falsePositiveRate = std::stof(argv[13]);
+    global_vbee_settings.sigmoid_steepness = std::stod(argv[8]);
+    global_vbee_settings.sigmoid_midpoint = std::stod(argv[9]);
+    global_vbee_settings.falseNegativeRate = std::stof(argv[10]);
+    global_vbee_settings.falsePositiveRate = std::stof(argv[11]);
   }
 
   std::string output_filename(argv[14]);

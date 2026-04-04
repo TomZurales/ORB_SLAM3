@@ -55,27 +55,36 @@ std::map<std::string, std::vector<Observation>> observation_cache;
  */
 std::pair<float, float> estimateModelError(World world, ObservabilityModel model) {
   float total_error = 0.0f;
-  float estimation_time = 0.0f;
+  float total_confidence = 0.0f;
   
   const std::string world_name = world.getName();
   const auto& observations = observation_cache[world_name];
   const float num_observations = static_cast<float>(observations.size());
 
+  std::vector<double> estimation_times;
   for (const auto& observation : observations) {
     double start_time = getCurrentThreadCpuTime();
     auto estimate = model.Estimate(observation.v);
     double end_time = getCurrentThreadCpuTime();
 
-    estimation_time += end_time - start_time;
+    estimation_times.push_back(end_time - start_time);
     float error = std::abs(estimate.first - observation.s);
     total_error += error;
+    total_confidence += estimate.second;
   }
+
+  double average_estimation_time = 0.0;
+  for (const auto& t : estimation_times) {
+    average_estimation_time += t;
+  }
+  average_estimation_time /= estimation_times.size();
+  std::cout << "Average estimation time: " << average_estimation_time << " s" << std::endl;
   
   return std::make_pair(total_error / num_observations, 
-                       estimation_time / num_observations);
+                       total_confidence / num_observations);
 }
 
-constexpr int EXPECTED_ARGC_WITH_PARAMS = 8;
+constexpr int EXPECTED_ARGC_WITH_PARAMS = 9;
 constexpr int POST_STABILIZATION_TESTS = 1000;
 constexpr int DEFAULT_STABILIZATION_FAILURE_TIME = 2000;
 constexpr int MAX_STABILIZATION_FAILURE_TIME = 10000;
@@ -92,10 +101,11 @@ int main(int argc, char **argv) {
   if (argc == EXPECTED_ARGC_WITH_PARAMS) {
     global_vbee_settings.n = std::stoi(argv[1]);
     global_vbee_settings.k = std::stoi(argv[2]);
-    global_vbee_settings.distance_threshold = std::stof(argv[3]);
-    global_vbee_settings.unknown_psge_value = std::stof(argv[4]);
-    global_vbee_settings.min_confidence_threshold = std::stof(argv[5]);
-    global_vbee_settings.max_error_threshold = std::stof(argv[6]);
+    global_vbee_settings.angle_threshold = std::stof(argv[3]);
+    global_vbee_settings.distance_threshold = std::stof(argv[4]);
+    global_vbee_settings.unknown_psge_value = std::stof(argv[5]);
+    global_vbee_settings.min_confidence_threshold = std::stof(argv[6]);
+    global_vbee_settings.max_error_threshold = std::stof(argv[7]);
   }
 
   // Initialize output files
@@ -103,7 +113,7 @@ int main(int argc, char **argv) {
   // std::mutex history_file_mutex;
   // std::ofstream history_file("observability_model_history.txt", std::ios::app);
   
-  const std::string output_filename(argv[7]);
+  const std::string output_filename(argv[8]);
   
   // Initialize world data structures
   std::vector<World> worlds;
@@ -194,19 +204,24 @@ int main(int argc, char **argv) {
   std::mutex stdout_mutex;
   
   std::vector<float> final_errors(worlds.size(), -1.0f);
-  std::vector<float> final_times(worlds.size(), -1.0f);
+  std::vector<float> final_confidences(worlds.size(), -1.0f);
   std::vector<int> stabilization_times(worlds.size(), MAX_STABILIZATION_FAILURE_TIME);
   std::vector<int> post_stabilization_updates(worlds.size(), MAX_STABILIZATION_FAILURE_TIME);
 
   // Process each world in separate threads
   for (size_t world_idx = 0; world_idx < worlds.size(); ++world_idx) {
     worker_threads.emplace_back([&worlds, world_idx, &stabilization_times, &world_stats_mutex, 
-                                &final_errors, &post_stabilization_updates, &final_times,
+                                &final_errors, &post_stabilization_updates, &final_confidences,
                                 &stdout_mutex/*, &history_file_mutex, &history_file*/]() {
       const World& world = worlds[world_idx];
       ObservabilityModel model;
+      StableChecker error_stability_checker;
+      StableChecker confidence_stability_checker;
 
-      // Perform 5000 initial updates to warm up the model
+      // Phase 1: Find stabilization point
+      bool model_stabilized = false;
+      const int max_iterations = global_vbee_settings.n + MAX_STABLE_ATTEMPTS;
+
       for(int i = 0; i < 5000; i++)
       {
         Eigen::Vector3f viewpoint = world.getRandomValidViewpoint();
@@ -215,11 +230,80 @@ int main(int argc, char **argv) {
         model.Update(Observation{viewpoint, seen ? 1.0f : 0.0f});
       }
 
-      auto err_time = estimateModelError(world, model);
+      auto err = estimateModelError(world, model);
       {
         std::lock_guard<std::mutex> lock(world_stats_mutex);
-        final_errors[world_idx] = err_time.first;
-        final_times[world_idx] = (err_time.second * 1e6);
+        final_errors[world_idx] = err.first;
+      }
+      return;
+      
+      for (int iteration = 0; iteration < max_iterations; iteration++) {
+        // Generate observation and update model
+        Viewpoint viewpoint = world.getRandomValidViewpoint();
+        bool is_seen = world.isSeen(viewpoint);
+        Observation observation{viewpoint, is_seen ? 1.0f : 0.0f};
+        model.Update(observation);
+
+        // Evaluate current model performance
+        auto result = estimateModelError(world, model);
+        float current_error = result.first;
+        float current_confidence = result.second;
+        
+        // Log progress to history file
+        // {
+        //   std::lock_guard<std::mutex> lock(history_file_mutex);
+        //   history_file << world_idx << "," << iteration << ","
+        //               << current_error << "," << current_confidence << std::endl;
+        // }
+        
+        // Check for stabilization after minimum iterations
+        if (iteration >= global_vbee_settings.n &&
+            error_stability_checker.addValue(current_error) &&
+            confidence_stability_checker.addValue(current_confidence)) {
+          // Model has stabilized
+          std::lock_guard<std::mutex> lock(world_stats_mutex);
+          stabilization_times[world_idx] = iteration - global_vbee_settings.n;
+          final_errors[world_idx] = current_error;
+          final_confidences[world_idx] = current_confidence;
+          model_stabilized = true;
+          break;
+        }
+        
+        // Handle case where model never stabilizes
+        if (!model_stabilized && iteration == max_iterations - 1) {
+          {
+            std::lock_guard<std::mutex> lock(stdout_mutex);
+            std::cout << "World " << world.getName()
+                      << " did not stabilize within the maximum attempts." << std::endl;
+          }
+          std::lock_guard<std::mutex> lock(world_stats_mutex);
+          stabilization_times[world_idx] = DEFAULT_STABILIZATION_FAILURE_TIME;
+          final_errors[world_idx] = current_error;
+          final_confidences[world_idx] = current_confidence;
+        }
+      }
+
+      // Phase 2: Count updates after stabilization
+      int update_count = 0;
+      for (int test_iteration = 0; test_iteration < POST_STABILIZATION_TESTS; test_iteration++) {
+        Viewpoint viewpoint = world.getRandomValidViewpoint();
+        bool is_seen = world.isSeen(viewpoint);
+        Observation observation{viewpoint, is_seen ? 1.0f : 0.0f};
+        
+        // Estimate before updating
+        model.Estimate(viewpoint);
+        auto update_result = model.Update(observation);
+
+        // Count actual updates
+        if (update_result.second) {
+          update_count++;
+        }
+      }
+      
+      // Store final update count
+      {
+        std::lock_guard<std::mutex> lock(world_stats_mutex);
+        post_stabilization_updates[world_idx] = update_count;
       }
     });
   }
@@ -237,15 +321,30 @@ int main(int argc, char **argv) {
   average_error /= static_cast<float>(final_errors.size());
   std::cout << "Average Model Error: " << average_error << std::endl;
 
-  float average_time = 0.0f;
-  for (const auto &time : final_times) {
-    average_time += time;
+  float average_confidence = 0.0f;
+  for (const auto &confidence : final_confidences) {
+    average_confidence += confidence;
   }
-  average_time /= static_cast<float>(final_times.size());
-  std::cout << "Average Model Time: " << average_time << std::endl;
+  average_confidence /= static_cast<float>(final_confidences.size());
+  std::cout << "Average Model Confidence: " << average_confidence << std::endl;
+
+  float average_stabilization_time = 0.0f;
+  for (const auto &time : stabilization_times) {
+    average_stabilization_time += static_cast<float>(time);
+  }
+  average_stabilization_time /= static_cast<float>(stabilization_times.size());
+  std::cout << "Average Error Stabilization Time: " << average_stabilization_time / 100.0f << std::endl;
+
+  float average_post_stab_updates = 0.0f;
+  for (const auto &update_count : post_stabilization_updates) {
+    average_post_stab_updates += static_cast<float>(update_count);
+  }
+  average_post_stab_updates /= static_cast<float>(post_stabilization_updates.size());
+  std::cout << "Average Number of Updates after Stabilization: " << average_post_stab_updates / 1000.0f << std::endl;
 
   // Write results to output file
-  results_file << average_error << "," << average_time << "\n";
+  results_file << average_error << "," << average_confidence << "," << average_stabilization_time / 100.0f << "," 
+               << average_post_stab_updates / 1000.0f << "\n";
   results_file.close();
   
   return 0;

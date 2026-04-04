@@ -29,7 +29,7 @@
 #include "ORBmatcher.h"
 
 #include "Thirdparty/DBoW2/DUtils/Random.h"
-#include "VBEE/vbee.h"
+#include "vbee.h"
 
 extern VBEESettings global_vbee_settings;
 

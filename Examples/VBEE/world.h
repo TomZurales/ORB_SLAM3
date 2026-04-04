@@ -10,7 +10,7 @@
 #include <vector>
 #include <eigen3/Eigen/Core>
 
-#include "VBEE/vbee.h"
+#include "vbee.h"
 
 #define N_TESTERS 10000
 #define MIN_NOT_IN_KEEPOUT N_TESTERS * 0.2

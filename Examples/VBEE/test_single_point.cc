@@ -1,4 +1,4 @@
-#include "VBEE/vbee.h"
+#include "vbee.h"
 #include <chrono>
 #include <iostream>
 #include <thread>

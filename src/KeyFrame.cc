@@ -49,9 +49,9 @@ KeyFrame::KeyFrame()
       mpParent(NULL), mbNotErase(false), mbToBeErased(false), mbBad(false),
       mHalfBaseline(0), mbCurrentPlaceRecognition(false),
       mnMergeCorrectedForKF(0), NLeft(0), NRight(0), mnNumberOfOpt(0),
-      mbHasVelocity(false) {}
+      mbHasVelocity(false), real(true) {}
 
-KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB)
+KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB, bool real)
     : bImu(pMap->isImuInitialized()), mnFrameId(F.mnId),
       mTimeStamp(F.mTimeStamp), mnGridCols(FRAME_GRID_COLS),
       mnGridRows(FRAME_GRID_ROWS),
@@ -81,7 +81,7 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB)
       mpCamera2(F.mpCamera2), mvLeftToRightMatch(F.mvLeftToRightMatch),
       mvRightToLeftMatch(F.mvRightToLeftMatch), mTlr(F.GetRelativePoseTlr()),
       mvKeysRight(F.mvKeysRight), NLeft(F.Nleft), NRight(F.Nright),
-      mTrl(F.GetRelativePoseTrl()), mnNumberOfOpt(0), mbHasVelocity(false) {
+      mTrl(F.GetRelativePoseTrl()), mnNumberOfOpt(0), mbHasVelocity(false), real(real) {
   mnId = nNextId++;
 
   mGrid.resize(mnGridCols);
@@ -1093,6 +1093,41 @@ void KeyFrame::SetORBVocabulary(ORBVocabulary *pORBVoc) {
 
 void KeyFrame::SetKeyFrameDatabase(KeyFrameDatabase *pKFDB) {
   mpKeyFrameDB = pKFDB;
+}
+
+bool KeyFrame::IsInCameraFrustum(MapPoint *pMP) const {
+  if (!pMP || pMP->isBad()) {
+    return false;
+  }
+
+  // Get 3D point in world coordinates
+  Eigen::Vector3f P = pMP->GetWorldPos();
+
+  // Transform to camera coordinates
+  // unique_lock<mutex> lock(mMutexPose);
+  Eigen::Vector3f Pc = mRcw * P + mTcw.translation();
+  
+  // Check if point is in front of camera (positive depth)
+  if (Pc(2) <= 0.0f) {
+    return false;
+  }
+
+  // Project to image coordinates
+  const float invz = 1.0f / Pc(2);
+  const float u = fx * Pc(0) * invz + cx;
+  const float v = fy * Pc(1) * invz + cy;
+
+  // Check if projection is within image bounds
+  if (u < mnMinX || u > mnMaxX || v < mnMinY || v > mnMaxY) {
+    return false;
+  }
+
+  // Check depth bounds (reasonable viewing distance)
+  if (Pc(2) > mThDepth) {
+    return false;
+  }
+
+  return true;
 }
 
 } // namespace ORB_SLAM3

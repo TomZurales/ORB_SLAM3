@@ -27,7 +27,7 @@
 #include "Optimizer.h"
 #include "Sim3Solver.h"
 #include "Tracking.h"
-#include "VBEE/TrackedStats.h"
+#include "TrackedStats.h"
 
 #include <mutex>
 #include <thread>
@@ -1029,7 +1029,7 @@ void LoopClosing::CorrectLoop() {
     unique_lock<mutex> lock(mMutexGBA);
     mbStopGBA = true;
 
-    mnFullBAIdx++;
+    mnFullBAIdx = true;
 
     if (mpThreadGBA) {
       mpThreadGBA->detach();
@@ -1309,7 +1309,7 @@ void LoopClosing::MergeLocal() {
     unique_lock<mutex> lock(mMutexGBA);
     mbStopGBA = true;
 
-    mnFullBAIdx++;
+    mnFullBAIdx = true;
 
     if (mpThreadGBA) {
       mpThreadGBA->detach();
@@ -1897,7 +1897,7 @@ void LoopClosing::MergeLocal2() {
     unique_lock<mutex> lock(mMutexGBA);
     mbStopGBA = true;
 
-    mnFullBAIdx++;
+    mnFullBAIdx = true;
 
     if (mpThreadGBA) {
       mpThreadGBA->detach();

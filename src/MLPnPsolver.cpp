@@ -50,7 +50,7 @@
  ******************************************************************************/
 
 #include "MLPnPsolver.h"
-#include "VBEE/vbee.h"
+#include "vbee.h"
 
 #include <Eigen/Sparse>
 

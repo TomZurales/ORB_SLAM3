@@ -30,11 +30,11 @@
 #include "ORBmatcher.h"
 #include "Optimizer.h"
 #include "Pinhole.h"
-#include "VBEE/TrackedStats.h"
+#include "TrackedStats.h"
 
 #include <iostream>
 
-#include "VBEE/vbee.h"
+#include "vbee.h"
 #include <chrono>
 #include <mutex>
 

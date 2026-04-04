@@ -3000,7 +3000,7 @@ bool Tracking::NeedNewKeyFrame() {
   // visual odometry compared to map matches.
   const bool c2 =
       (((mnMatchesInliers < nRefMatches * thRefRatio || bNeedToInsertClose)) &&
-       mnMatchesInliers > 15);
+       mnMatchesInliers > 5);
 
   // std::cout << "NeedNewKF: c1a=" << c1a << "; c1b=" << c1b << "; c1c=" << c1c
   // << "; c2=" << c2 << std::endl;

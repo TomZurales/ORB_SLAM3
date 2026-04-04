@@ -20,10 +20,11 @@
  */
 
 #include "Viewer.h"
-#include "VBEE/vbee.h"
+#include "vbee.h"
 #include <pangolin/pangolin.h>
 
 #include <mutex>
+#include <random>
 #include <sstream>
 
 extern VBEESettings global_vbee_settings;
@@ -153,6 +154,30 @@ bool Viewer::ParseViewerParamFile(cv::FileStorage &fSettings) {
   return !b_miss_params;
 }
 
+std::string get_random_string(size_t length) {
+  const std::string characters =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+  // Use std::random_device to seed the random number engine
+  std::random_device rd;
+  // Mersenne Twister engine provides high quality pseudo-random numbers
+  std::mt19937 generator(rd());
+
+  // Define a uniform integer distribution to pick an index within the range of
+  // 'characters'
+  std::uniform_int_distribution<> distribution(0, characters.size() - 1);
+
+  std::string random_string;
+  random_string.reserve(length); // Reserve memory for efficiency
+
+  // Generate the string character by character
+  for (size_t i = 0; i < length; ++i) {
+    random_string += characters[distribution(generator)];
+  }
+
+  return random_string;
+}
+
 void Viewer::Run() {
   mbFinished = false;
   mbStopped = false;
@@ -160,10 +185,16 @@ void Viewer::Run() {
   std::stringstream ss;
   ss << "ORB-SLAM3: Map Viewer";
   if (global_vbee_settings.in_use) {
-    ss << " VBEE";
-    if (global_vbee_settings.weight_ransac)
-      ss << " RANSAC";
+    if (global_vbee_settings.random_sparsification)
+      ss << " Random Sparsification";
+    else {
+      ss << " VBEE";
+      if (global_vbee_settings.weight_ransac)
+        ss << " RANSAC";
+    }
   }
+
+  ss << " " << get_random_string(6);
 
   pangolin::CreateWindowAndBind(ss.str(), 1024, 768);
 
@@ -193,8 +224,8 @@ void Viewer::Run() {
                                      true); // false, true
   pangolin::Var<bool> menuStep("menu.Step", false, false);
   pangolin::Var<bool> menuVBEE("menu.VBEE", global_vbee_settings.in_use, true);
-  pangolin::Var<bool> menuRANSAC("menu.RANSAC", global_vbee_settings.weight_ransac,
-                                 true);
+  pangolin::Var<bool> menuRANSAC("menu.RANSAC",
+                                 global_vbee_settings.weight_ransac, true);
 
   pangolin::Var<bool> menuShowOptLba("menu.Show LBA opt", false, true);
   // Define Camera Render Object (for view / scene browsing)
@@ -343,8 +374,10 @@ void Viewer::Run() {
       cv::resize(toShow, toShow, cv::Size(width, height));
     }
 
-    cv::imshow(ss2.str(), toShow);
-    cv::waitKey(mT);
+    if (!toShow.empty()) {
+      cv::imshow(ss2.str(), toShow);
+      cv::waitKey(mT);
+    }
 
     if (menuReset) {
       menuShowGraph = true;

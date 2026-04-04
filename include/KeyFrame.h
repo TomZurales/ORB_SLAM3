@@ -193,7 +193,7 @@ class KeyFrame {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   KeyFrame();
-  KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB);
+  KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB, bool real = true);
 
   // Pose functions
   void SetPose(const Sophus::SE3f &Tcw);
@@ -236,6 +236,8 @@ public:
   bool hasChild(KeyFrame *pKF);
   void SetFirstConnection(bool bFirst);
 
+  bool vbeeActive = false;
+
   // Loop Edges
   void AddLoopEdge(KeyFrame *pKF);
   std::set<KeyFrame *> GetLoopEdges();
@@ -254,6 +256,9 @@ public:
   std::vector<MapPoint *> GetMapPointMatches();
   int TrackedMapPoints(const int &minObs);
   MapPoint *GetMapPoint(const size_t &idx);
+
+  // Camera frustum functions
+  bool IsInCameraFrustum(MapPoint *pMP) const;
 
   // KeyPoint functions
   std::vector<size_t> GetFeaturesInArea(const float &x, const float &y,
@@ -369,6 +374,8 @@ public:
   long unsigned int mnBALocalForMerge;
 
   float mfScale;
+
+  bool real;
 
   // Calibration parameters
   const float fx, fy, cx, cy, invfx, invfy, mbf, mb, mThDepth;

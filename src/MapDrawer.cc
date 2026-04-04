@@ -22,12 +22,17 @@
 #include "MapDrawer.h"
 #include "KeyFrame.h"
 #include "MapPoint.h"
-#include "VBEE/viewpoint.h"
+#include "viewpoint.h"
+#include "vbee.h"
 #include <epoxy/gl_generated.h>
 #include <mutex>
 #include <pangolin/pangolin.h>
+#include "vbee.h"
+
+extern VBEESettings global_vbee_settings;
 
 namespace ORB_SLAM3 {
+
 
 MapDrawer::MapDrawer(Atlas *pAtlas, const string &strSettingPath,
                      Settings *settings)
@@ -192,38 +197,29 @@ bool MapDrawer::ParseViewerParamFile(cv::FileStorage &fSettings) {
 //   glEnd();
 // }
 
-void ApplyHeatmapColor(float value, float confidence = 1.0f) {
-  // Clamp value between 0 and 1
-  value = std::max(0.0f, std::min(1.0f, value));
+void ApplyHeatmapColor(float value, float confidence = 1.0f, float min = 0.0f, float max = 1.0f) {
+  // Clamp value between min and max
+  value = std::max(min, std::min(max, value));
   
+  // Normalize value to 0-1 range
+  float normalized = (value - min) / (max - min);
+
   float r, g, b;
-  
-  if (value <= 0.25f) {
-    // Red to Orange (0.0 to 0.25)
-    float t = value / 0.25f;
+
+  if (normalized <= 0.5f) {
+    // Red to Yellow (0.0 to 0.5)
+    float t = normalized / 0.5f;
     r = 1.0f;
-    g = t * 0.5f;
-    b = 0.0f;
-  } else if (value <= 0.5f) {
-    // Orange to Yellow (0.25 to 0.5)
-    float t = (value - 0.25f) / 0.25f;
-    r = 1.0f;
-    g = 0.5f + t * 0.5f;
-    b = 0.0f;
-  } else if (value <= 0.75f) {
-    // Yellow to Blue (0.5 to 0.75)
-    float t = (value - 0.5f) / 0.25f;
-    r = 1.0f - t;
-    g = 1.0f - t;
-    b = t;
-  } else {
-    // Blue to Green (0.75 to 1.0)
-    float t = (value - 0.75f) / 0.25f;
-    r = 0.0f;
     g = t;
-    b = 1.0f - t;
+    b = 0.0f;
+  } else {
+    // Yellow to Green (0.5 to 1.0)
+    float t = (normalized - 0.5f) / 0.5f;
+    r = 1.0f - t;
+    g = 1.0f;
+    b = 0.0f;
   }
-  
+
   glColor4f(r, g, b, confidence);
 }
 
@@ -234,9 +230,9 @@ void MapDrawer::DrawMapPoints() {
     return;
 
   const vector<MapPoint *> &vpMPs = pActiveMap->GetAllMapPoints();
-  const vector<MapPoint *> &vpRefMPs = pActiveMap->GetReferenceMapPoints();
+  // const vector<MapPoint *> &vpRefMPs = pActiveMap->GetReferenceMapPoints();
 
-  set<MapPoint *> spRefMPs(vpRefMPs.begin(), vpRefMPs.end());
+  // set<MapPoint *> spRefMPs(vpRefMPs.begin(), vpRefMPs.end());
 
   if (vpMPs.empty())
     return;
@@ -248,42 +244,69 @@ void MapDrawer::DrawMapPoints() {
   // glColor3f(0.0,0.0,0.0);
 
   for (size_t i = 0, iend = vpMPs.size(); i < iend; i++) {
-    vpMPs[i]->isInCameraView = false;
-    if (vpMPs[i]->isBad() || spRefMPs.count(vpMPs[i]))
+    if(vpMPs[i]->isBad())
       continue;
     Eigen::Matrix<float, 3, 1> pos = vpMPs[i]->GetWorldPos();
     // glColor3f(0,vpMPs[i]->vbee.GetPSeenGivenExists(vpMPs[i]->GetWorldPos() -
     // cameraViewpoint),0.0);
     // glColor3f(1 - vpMPs[i]->vbee.Query(), vpMPs[i]->vbee.Query(), 0.0);
-    auto psge_confidence = vpMPs[i]->vbee.GetPSeenGivenExists(cameraPosition - pos);
-    float psge = psge_confidence.first;
-    float p_e = vpMPs[i]->vbee.Query();
-    // glPointSize((psge * 5) + 1);
-    glBegin(GL_POINTS);
-    // glColor3f(1 - p_e, p_e, 0.0);
-    ApplyHeatmapColor(psge, psge_confidence.second);
-    glVertex3f(pos(0), pos(1), pos(2));
-    glEnd();
+
+    if(!global_vbee_settings.vbee_processing)
+    {
+      auto psge_confidence =
+          vpMPs[i]->vbee.GetPSeenGivenExists(cameraPosition - pos);
+      float psge = psge_confidence.first;
+      float p_e = vpMPs[i]->vbee.Query();
+      // glPointSize((psge * 5) + 1);
+      glBegin(GL_POINTS);
+      // ApplyHeatmapColor(psge);
+      ApplyHeatmapColor(p_e, 1.0f, global_vbee_settings.bad_threshold, 1.0f);
+      if(vpMPs[i]->IsVBEEEliminated()) {
+        // Dim the color for eliminated points
+        glColor4f(0, 0, 0, 1.0f);
+      }
+      glVertex3f(pos(0), pos(1), pos(2));
+      glEnd();
+    } else {
+      glBegin(GL_POINTS);
+      if(!vpMPs[i]->isInCameraView)
+      {
+        glColor3f(0.5f, 0.5f, 0.5f);
+      } else if(vpMPs[i]->vbeeSeen) {
+        glColor3f(0.0f, 1.0f, 0.0f); // Green for seen points
+      } else {
+        glColor3f(1.0f, 0.0f, 0.0f); // Red for not seen points
+      }
+      glVertex3f(pos(0), pos(1), pos(2));
+      glEnd();
+    }
   }
 
   // glPointSize(mPointSize);
   // glColor3f(1.0,0.0,0.0);
 
-  for (set<MapPoint *>::iterator sit = spRefMPs.begin(), send = spRefMPs.end();
-       sit != send; sit++) {
-    (*sit)->isInCameraView = false;
-    if ((*sit)->isBad())
-      continue;
-    Eigen::Matrix<float, 3, 1> pos = (*sit)->GetWorldPos();
-    auto psge_confidence = (*sit)->vbee.GetPSeenGivenExists(cameraPosition - pos);
-    float psge = psge_confidence.first;
-    float p_e = (*sit)->vbee.Query();
-    // glPointSize((psge * 5) + 1);
-    glBegin(GL_POINTS);
-    ApplyHeatmapColor(psge, psge_confidence.second);
-    glVertex3f(pos(0), pos(1), pos(2));
-    glEnd();
-  }
+  // for (set<MapPoint *>::iterator sit = spRefMPs.begin(), send = spRefMPs.end();
+  //      sit != send; sit++) {
+  //   (*sit)->isInCameraView = false;
+  //   if (!(*sit)->IsVBEEEliminated() && (*sit)->isBad())
+  //     continue;
+  //   Eigen::Matrix<float, 3, 1> pos = (*sit)->GetWorldPos();
+  //   auto psge_confidence =
+  //       (*sit)->vbee.GetPSeenGivenExists(cameraPosition - pos);
+  //   float psge = psge_confidence.first;
+  //   float p_e = (*sit)->vbee.Query();
+  //   // glPointSize((psge * 5) + 1);
+  //   glBegin(GL_POINTS);
+  //   // ApplyHeatmapColor(psge);
+  //   ApplyHeatmapColor(p_e, 1.0f, global_vbee_settings.bad_threshold, 1.0f);
+  //   if((*sit)->IsVBEEEliminated()) {
+  //     // Dim the color for eliminated points
+  //     glColor4f(0, 0, 0, 1.0f);
+  //   }
+  //   // glColor3f(1 - p_e, p_e, 0.0);
+  //   glVertex3f(pos(0), pos(1), pos(2));
+  //   glEnd();
+  // }
 }
 
 void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph,
